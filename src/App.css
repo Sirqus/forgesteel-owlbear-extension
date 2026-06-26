@@ -49,6 +49,10 @@ h1 {
   cursor: pointer;
 }
 
+.roll-toolbar button:hover {
+  background: #e7edf4;
+}
+
 .tabs button {
   display: flex;
   align-items: center;
@@ -216,8 +220,9 @@ h1 {
 }
 
 .bottom-bar {
-  display: grid;
-  grid-template-columns: minmax(0, 1fr) auto;
+  position: relative;
+  z-index: 20;
+  display: flex;
   gap: 8px;
   align-items: center;
   min-height: 42px;
@@ -230,6 +235,9 @@ h1 {
 .tabs {
   display: inline-grid;
   grid-template-columns: repeat(2, minmax(0, 1fr));
+  flex: 0 1 min(320px, 50%);
+  width: min(320px, 50%);
+  max-width: 50%;
   gap: 2px;
   min-width: 0;
   padding: 3px;
@@ -251,8 +259,7 @@ h1 {
   cursor: pointer;
 }
 
-.tabs button:hover,
-.roll-toolbar button:hover {
+.tabs button:hover {
   background: #e7edf4;
 }
 
@@ -276,6 +283,7 @@ h1 {
 
 .status-info {
   position: relative;
+  margin-left: auto;
 }
 
 .status-info-button {
@@ -317,7 +325,7 @@ h1 {
   position: absolute;
   right: 0;
   bottom: calc(100% + 8px);
-  z-index: 10;
+  z-index: 30;
   display: none;
   width: min(340px, calc(100vw - 22px));
   gap: 4px;
@@ -338,16 +346,18 @@ h1 {
 
 .resize-grip {
   position: fixed;
-  right: 0;
-  bottom: 0;
-  z-index: 5;
-  width: 34px;
-  height: 34px;
+  right: 4px;
+  bottom: 4px;
+  z-index: 40;
+  width: 32px;
+  height: 32px;
   border: 0;
+  border-radius: 7px;
   background:
-    linear-gradient(135deg, transparent 0 50%, rgba(33, 86, 129, 0.2) 50% 62%, transparent 62%),
-    linear-gradient(135deg, transparent 0 62%, rgba(33, 86, 129, 0.42) 62% 73%, transparent 73%),
-    linear-gradient(135deg, transparent 0 74%, rgba(33, 86, 129, 0.64) 74% 84%, transparent 84%);
+    linear-gradient(135deg, transparent 0 50%, rgba(33, 86, 129, 0.26) 50% 62%, transparent 62%),
+    linear-gradient(135deg, transparent 0 62%, rgba(33, 86, 129, 0.52) 62% 73%, transparent 73%),
+    linear-gradient(135deg, transparent 0 74%, rgba(33, 86, 129, 0.78) 74% 84%, transparent 84%),
+    rgba(255, 255, 255, 0.72);
   cursor: nwse-resize;
 }
 

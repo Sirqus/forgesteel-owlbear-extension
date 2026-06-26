@@ -263,6 +263,7 @@ function App() {
           </ol>
         )}
       </section>
+
       <footer className="bottom-bar">
         <nav className="tabs" aria-label="Extension views">
           <button
@@ -295,6 +296,7 @@ function App() {
           </div>
         </div>
       </footer>
+
       <button
         type="button"
         className="resize-grip"
