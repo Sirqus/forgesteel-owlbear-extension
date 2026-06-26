@@ -1,0 +1,16 @@
+{
+  "name": "ForgeSteel Bridge",
+  "version": "0.1.0",
+  "manifest_version": 1,
+  "description": "Embed ForgeSteel and collect bridge-ready roll events in Owlbear Rodeo.",
+  "author": "ForgeSteel Owlbear Bridge contributors",
+  "homepage_url": "https://github.com/andyaiken/forgesteel",
+  "icon": "/icon.svg",
+  "action": {
+    "title": "ForgeSteel",
+    "icon": "/icon.svg",
+    "popover": "/",
+    "height": 520,
+    "width": 450
+  }
+}
