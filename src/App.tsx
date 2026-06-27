@@ -11,7 +11,6 @@ import {
   type ForgeSteelRollResultMessage,
   listenForForgeSteelMessages,
   postDefaultOptionsToForgeSteel,
-  postLocalTestRoll,
 } from './lib/bridge'
 import {
   appendRoll,
@@ -100,6 +99,7 @@ function App() {
   const [manualRollState, setManualRollState] =
     useState<ManualRollState>('standard')
   const [manualHidden, setManualHidden] = useState(false)
+  const [manualPanelOpen, setManualPanelOpen] = useState(false)
   const iframeRef = useRef<HTMLIFrameElement>(null)
   const localPlayerRef = useRef<RollPlayer | undefined>(undefined)
 
@@ -347,80 +347,89 @@ function App() {
               Shared table rolls from ForgeSteel and the manual roll panel.
             </p>
           </div>
-          {import.meta.env.DEV && (
-            <button type="button" onClick={postLocalTestRoll}>
-              Add Test Roll
-            </button>
-          )}
+          <button
+            type="button"
+            onClick={() => setManualPanelOpen((open) => !open)}
+          >
+            {manualPanelOpen ? 'Close Roller' : 'Table Roller'}
+          </button>
         </div>
 
-        <section className="manual-roll-panel" aria-label="Manual roll panel">
-          <div className="manual-roll-heading">
-            <div>
-              <h3>Table Roll</h3>
-              <p>{localPlayer ? `Rolling as ${localPlayer.name}` : 'Local roll'}</p>
-            </div>
-            <button type="button" className="roll-command" onClick={handleManualRoll}>
-              Roll
-            </button>
-          </div>
-
-          <div className="manual-roll-controls">
-            <div className="control-group">
-              <span>Dice</span>
-              <div className="segmented-control">
-                {(['2d10', 'd10'] as ManualDice[]).map((dice) => (
-                  <button
-                    key={dice}
-                    type="button"
-                    className={manualDice === dice ? 'active' : ''}
-                    aria-pressed={manualDice === dice}
-                    onClick={() => setManualDice(dice)}
-                  >
-                    {dice}
-                  </button>
-                ))}
+        {manualPanelOpen && (
+          <section className="manual-roll-panel" aria-label="Manual roll panel">
+            <div className="manual-roll-heading">
+              <div>
+                <h3>Table Roll</h3>
+                <p>
+                  {localPlayer ? `Rolling as ${localPlayer.name}` : 'Local roll'}
+                </p>
               </div>
+              <button
+                type="button"
+                className="roll-command"
+                onClick={handleManualRoll}
+              >
+                Roll
+              </button>
             </div>
 
-            <label className="control-group">
-              <span>Modifier</span>
-              <input
-                type="number"
-                value={manualModifier}
-                onChange={(event) => {
-                  setManualModifier(Number(event.target.value || 0))
-                }}
-              />
-            </label>
-
-            <div className="control-group control-group-wide">
-              <span>Roll State</span>
-              <div className="segmented-control roll-state-control">
-                {MANUAL_ROLL_STATES.map((state) => (
-                  <button
-                    key={state.value}
-                    type="button"
-                    className={manualRollState === state.value ? 'active' : ''}
-                    aria-pressed={manualRollState === state.value}
-                    onClick={() => setManualRollState(state.value)}
-                  >
-                    {state.label}
-                  </button>
-                ))}
+            <div className="manual-roll-controls">
+              <div className="control-group">
+                <span>Dice</span>
+                <div className="segmented-control">
+                  {(['2d10', 'd10'] as ManualDice[]).map((dice) => (
+                    <button
+                      key={dice}
+                      type="button"
+                      className={manualDice === dice ? 'active' : ''}
+                      aria-pressed={manualDice === dice}
+                      onClick={() => setManualDice(dice)}
+                    >
+                      {dice}
+                    </button>
+                  ))}
+                </div>
               </div>
-            </div>
 
-            <label className="hidden-toggle">
-              <input
-                type="checkbox"
-                checked={manualHidden}
-                onChange={(event) => setManualHidden(event.target.checked)}
-              />
-              Hidden
-            </label>
-          </div>
-        </section>
+              <label className="control-group">
+                <span>Modifier</span>
+                <input
+                  type="number"
+                  value={manualModifier}
+                  onChange={(event) => {
+                    setManualModifier(Number(event.target.value || 0))
+                  }}
+                />
+              </label>
+
+              <div className="control-group control-group-wide">
+                <span>Roll State</span>
+                <div className="segmented-control roll-state-control">
+                  {MANUAL_ROLL_STATES.map((state) => (
+                    <button
+                      key={state.value}
+                      type="button"
+                      className={manualRollState === state.value ? 'active' : ''}
+                      aria-pressed={manualRollState === state.value}
+                      onClick={() => setManualRollState(state.value)}
+                    >
+                      {state.label}
+                    </button>
+                  ))}
+                </div>
+              </div>
+
+              <label className="hidden-toggle">
+                <input
+                  type="checkbox"
+                  checked={manualHidden}
+                  onChange={(event) => setManualHidden(event.target.checked)}
+                />
+                Hidden
+              </label>
+            </div>
+          </section>
+        )}
 
         {latestRoll && (
           <div className="latest-roll">
@@ -512,6 +521,17 @@ function App() {
                         <div className="keyword-row">
                           {roll.context.details.keywords.map((keyword) => (
                             <span key={keyword}>{keyword}</span>
+                          ))}
+                        </div>
+                      )}
+                    {roll.context.details.sections &&
+                      roll.context.details.sections.length > 0 && (
+                        <div className="ability-section-list">
+                          {roll.context.details.sections.map((section, index) => (
+                            <div key={`${section.label}-${index}`}>
+                              <strong>{section.label}</strong>
+                              <span>{section.text}</span>
+                            </div>
                           ))}
                         </div>
                       )}

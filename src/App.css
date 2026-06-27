@@ -459,11 +459,13 @@ h1 {
   border-right: 0;
 }
 
+.ability-section-list,
 .tier-list {
   display: grid;
   gap: 6px;
 }
 
+.ability-section-list div,
 .tier-list div {
   display: grid;
   gap: 2px;
@@ -471,9 +473,17 @@ h1 {
   border-top: 1px solid #e0e6ee;
 }
 
+.ability-section-list strong,
 .tier-list strong {
   color: #215681;
   font-size: 12px;
+}
+
+.ability-section-list span,
+.tier-list span {
+  color: #4f5f70;
+  font-size: 12px;
+  line-height: 1.35;
 }
 
 .bottom-bar {
