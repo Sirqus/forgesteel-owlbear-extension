@@ -46,6 +46,8 @@ const MIN_PANEL_WIDTH = 320
 const MAX_PANEL_WIDTH = 1280
 const MIN_PANEL_HEIGHT = 360
 const MAX_PANEL_HEIGHT = 1180
+const MIN_MANUAL_MODIFIER = -99
+const MAX_MANUAL_MODIFIER = 99
 
 type ActiveTab = 'forgesteel' | 'rolls'
 type ManualDice = 'd10' | '2d10'
@@ -124,11 +126,20 @@ function App() {
   const [manualHidden, setManualHidden] = useState(false)
   const [manualPanelOpen, setManualPanelOpen] = useState(false)
   const [clearConfirmOpen, setClearConfirmOpen] = useState(false)
+  const [unseenRollIds, setUnseenRollIds] = useState<Set<string>>(
+    () => new Set(),
+  )
+  const [flashingRollIds, setFlashingRollIds] = useState<Set<string>>(
+    () => new Set(),
+  )
   const [expandedRollIds, setExpandedRollIds] = useState<Set<string>>(
     () => new Set(),
   )
   const iframeRef = useRef<HTMLIFrameElement>(null)
   const localPlayerRef = useRef<RollPlayer | undefined>(undefined)
+  const activeTabRef = useRef<ActiveTab>('forgesteel')
+  const flashTimeoutsRef = useRef<number[]>([])
+  const rollIdsRef = useRef<Set<string>>(new Set(rolls.map((roll) => roll.id)))
 
   function recordRoll(
     message: ForgeSteelRollResultMessage,
@@ -138,8 +149,16 @@ function App() {
       player?: RollPlayer | undefined
     } = {},
   ) {
+    if (rollIdsRef.current.has(message.messageId)) {
+      return
+    }
+
+    rollIdsRef.current.add(message.messageId)
+    markRollFresh(message.messageId)
+
     setRolls((currentRolls) => {
       const nextRolls = appendRoll(currentRolls, message, options)
+      rollIdsRef.current = new Set(nextRolls.map((roll) => roll.id))
       saveStoredRolls(nextRolls)
       return nextRolls
     })
@@ -249,7 +268,18 @@ function App() {
     }
   }, [])
 
+  useEffect(() => {
+    const flashTimeouts = flashTimeoutsRef.current
+
+    return () => {
+      flashTimeouts.forEach((timeoutId) => {
+        window.clearTimeout(timeoutId)
+      })
+    }
+  }, [])
+
   const activePanelSize = panelSize
+  const rollStateDisabled = manualDice === 'd10'
 
   function handleResizeGripPointerDown(
     event: ReactPointerEvent<HTMLButtonElement>,
@@ -330,6 +360,63 @@ function App() {
     void broadcastRoll(message, visibility)
   }
 
+  function selectTab(nextTab: ActiveTab) {
+    activeTabRef.current = nextTab
+    setActiveTab(nextTab)
+
+    if (nextTab === 'rolls') {
+      setUnseenRollIds((currentIds) => {
+        const ids = [...currentIds]
+        if (ids.length > 0) {
+          queueRollFlash(ids)
+        }
+
+        return new Set()
+      })
+    }
+  }
+
+  function markRollFresh(rollId: string) {
+    if (activeTabRef.current === 'rolls') {
+      queueRollFlash([rollId])
+      return
+    }
+
+    setUnseenRollIds((currentIds) => {
+      const nextIds = new Set(currentIds)
+      nextIds.add(rollId)
+      return nextIds
+    })
+  }
+
+  function queueRollFlash(rollIds: string[]) {
+    if (rollIds.length === 0) {
+      return
+    }
+
+    setFlashingRollIds((currentIds) => {
+      const nextIds = new Set(currentIds)
+      rollIds.forEach((rollId) => nextIds.add(rollId))
+      return nextIds
+    })
+
+    const timeoutId = window.setTimeout(() => {
+      setFlashingRollIds((currentIds) => {
+        const nextIds = new Set(currentIds)
+        rollIds.forEach((rollId) => nextIds.delete(rollId))
+        return nextIds
+      })
+    }, 2600)
+
+    flashTimeoutsRef.current.push(timeoutId)
+  }
+
+  function adjustManualModifier(delta: number) {
+    setManualModifier((value) =>
+      clamp(value + delta, MIN_MANUAL_MODIFIER, MAX_MANUAL_MODIFIER),
+    )
+  }
+
   function toggleRollExpanded(rollId: string) {
     setExpandedRollIds((currentIds) => {
       const nextIds = new Set(currentIds)
@@ -347,6 +434,9 @@ function App() {
   function clearRollFeed() {
     setRolls([])
     saveStoredRolls([])
+    rollIdsRef.current = new Set()
+    setUnseenRollIds(new Set())
+    setFlashingRollIds(new Set())
     setExpandedRollIds(new Set())
     setClearConfirmOpen(false)
   }
@@ -421,13 +511,23 @@ function App() {
                   {localPlayer ? `Rolling as ${localPlayer.name}` : 'Local roll'}
                 </p>
               </div>
-              <button
-                type="button"
-                className="roll-command"
-                onClick={handleManualRoll}
-              >
-                Roll
-              </button>
+              <div className="manual-roll-actions">
+                <label className="hidden-toggle hidden-toggle-heading">
+                  <input
+                    type="checkbox"
+                    checked={manualHidden}
+                    onChange={(event) => setManualHidden(event.target.checked)}
+                  />
+                  Hidden
+                </label>
+                <button
+                  type="button"
+                  className="roll-command"
+                  onClick={handleManualRoll}
+                >
+                  Roll
+                </button>
+              </div>
             </div>
 
             <div className="manual-roll-controls">
@@ -448,26 +548,46 @@ function App() {
                 </div>
               </div>
 
-              <label className="control-group">
+              <div className="control-group">
                 <span>Modifier</span>
-                <input
-                  type="number"
-                  value={manualModifier}
-                  onChange={(event) => {
-                    setManualModifier(Number(event.target.value || 0))
-                  }}
-                />
-              </label>
+                <div className="modifier-stepper">
+                  <button
+                    type="button"
+                    aria-label="Decrease modifier"
+                    onClick={() => adjustManualModifier(-1)}
+                  >
+                    -
+                  </button>
+                  <output aria-live="polite">
+                    {formatModifierValue(manualModifier)}
+                  </output>
+                  <button
+                    type="button"
+                    aria-label="Increase modifier"
+                    onClick={() => adjustManualModifier(1)}
+                  >
+                    +
+                  </button>
+                </div>
+              </div>
 
-              <div className="control-group control-group-wide">
+              <div
+                className={`control-group control-group-wide ${
+                  rollStateDisabled ? 'control-group-disabled' : ''
+                }`}
+              >
                 <span>Roll State</span>
-                <div className="segmented-control roll-state-control">
+                <div
+                  className="segmented-control roll-state-control"
+                  aria-disabled={rollStateDisabled}
+                >
                   {MANUAL_ROLL_STATES.map((state) => (
                     <button
                       key={state.value}
                       type="button"
                       className={manualRollState === state.value ? 'active' : ''}
                       aria-pressed={manualRollState === state.value}
+                      disabled={rollStateDisabled}
                       onClick={() => setManualRollState(state.value)}
                     >
                       {state.label}
@@ -475,15 +595,6 @@ function App() {
                   ))}
                 </div>
               </div>
-
-              <label className="hidden-toggle">
-                <input
-                  type="checkbox"
-                  checked={manualHidden}
-                  onChange={(event) => setManualHidden(event.target.checked)}
-                />
-                Hidden
-              </label>
             </div>
           </section>
         )}
@@ -506,7 +617,7 @@ function App() {
                   key={roll.id}
                   className={`roll-card ${
                     roll.visibility === 'hidden' ? 'roll-card-hidden' : ''
-                  }`}
+                  } ${flashingRollIds.has(roll.id) ? 'roll-card-fresh' : ''}`}
                 >
                   <button
                     type="button"
@@ -712,17 +823,17 @@ function App() {
           <button
             type="button"
             className={activeTab === 'forgesteel' ? 'active' : ''}
-            onClick={() => setActiveTab('forgesteel')}
+            onClick={() => selectTab('forgesteel')}
           >
             ForgeSteel
           </button>
           <button
             type="button"
             className={activeTab === 'rolls' ? 'active' : ''}
-            onClick={() => setActiveTab('rolls')}
+            onClick={() => selectTab('rolls')}
           >
             Rolls
-            {rolls.length > 0 && <span>{rolls.length}</span>}
+            {unseenRollIds.size > 0 && <span>{unseenRollIds.size}</span>}
           </button>
         </nav>
         <div className="status-info">
@@ -800,16 +911,19 @@ function createManualRollMessage({
 }): ForgeSteelRollResultMessage {
   const rolls = dice === '2d10' ? [rollD10(), rollD10()] : [rollD10()]
   const naturalTotal = rolls.reduce((sum, roll) => sum + roll, 0)
-  const stateBonus = dice === '2d10' ? getRollStateBonus(rollState) : 0
+  const effectiveRollState: ManualRollState =
+    dice === '2d10' ? rollState : 'standard'
+  const stateBonus = dice === '2d10' ? getRollStateBonus(effectiveRollState) : 0
   const total = naturalTotal + modifier + stateBonus
   const baseTier = dice === '2d10' ? getBasePowerRollTier(total) : undefined
-  const tier = dice === '2d10' ? getPowerRollTier(total, rollState) : undefined
-  const formula = formatFormula(dice, modifier, stateBonus, rollState)
+  const tier =
+    dice === '2d10' ? getPowerRollTier(total, effectiveRollState) : undefined
+  const formula = formatFormula(dice, modifier, stateBonus, effectiveRollState)
   const breakdownParts = [
     rolls.join(' + '),
     modifier !== 0 ? formatSignedNumber(modifier) : '',
     stateBonus !== 0
-      ? `${formatSignedNumber(stateBonus)} ${getRollStateLabel(rollState)}`
+      ? `${formatSignedNumber(stateBonus)} ${getRollStateLabel(effectiveRollState)}`
       : '',
   ].filter(Boolean)
 
@@ -827,7 +941,8 @@ function createManualRollMessage({
       naturalTotal,
       tier,
       baseTier,
-      rollState: getRollStateLabel(rollState),
+      rollState:
+        dice === '2d10' ? getRollStateLabel(effectiveRollState) : undefined,
       breakdown: `${breakdownParts.join(' ')} = ${total}${
         tier ? ` (Tier ${tier})` : ''
       }`,
@@ -835,7 +950,8 @@ function createManualRollMessage({
         kind: 'manual',
         details: {
           name: dice === '2d10' ? 'Manual Power Roll' : 'Manual d10 Roll',
-          type: getRollStateLabel(rollState),
+          type:
+            dice === '2d10' ? getRollStateLabel(effectiveRollState) : undefined,
           tiers: tier
             ? [
                 {
@@ -908,6 +1024,10 @@ function formatFormula(
 
 function formatSignedNumber(value: number): string {
   return `${value > 0 ? '+' : '-'} ${Math.abs(value)}`
+}
+
+function formatModifierValue(value: number): string {
+  return value > 0 ? `+${value}` : value.toString()
 }
 
 function getRollStateLabel(rollState: ManualRollState): string {

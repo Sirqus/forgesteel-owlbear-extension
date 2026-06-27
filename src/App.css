@@ -200,6 +200,12 @@ h1 {
   gap: 12px;
 }
 
+.manual-roll-actions {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+
 .manual-roll-heading h3 {
   margin: 0 0 2px;
   color: #f2f0ea;
@@ -254,20 +260,6 @@ h1 {
   grid-column: 1 / -1;
 }
 
-.control-group input[type='number'] {
-  width: 100%;
-  min-height: 32px;
-  box-sizing: border-box;
-  border: 1px solid #454951;
-  border-radius: 6px;
-  padding: 0 8px;
-  color: #f2f0ea;
-  background: #181a1f;
-  font: inherit;
-  font-size: 13px;
-  font-weight: 700;
-}
-
 .segmented-control {
   display: grid;
   grid-auto-flow: column;
@@ -298,6 +290,56 @@ h1 {
   box-shadow: 0 1px 2px rgba(0, 0, 0, 0.36);
 }
 
+.segmented-control button:disabled {
+  color: #6f747d;
+  cursor: not-allowed;
+}
+
+.segmented-control button:disabled.active {
+  color: #858b94;
+  background: transparent;
+  box-shadow: none;
+}
+
+.control-group-disabled {
+  opacity: 0.62;
+}
+
+.modifier-stepper {
+  display: grid;
+  grid-template-columns: 32px minmax(44px, 1fr) 32px;
+  min-height: 32px;
+  overflow: hidden;
+  border: 1px solid #454951;
+  border-radius: 7px;
+  background: #181a1f;
+}
+
+.modifier-stepper button {
+  display: grid;
+  place-items: center;
+  border: 0;
+  color: #f2f0ea;
+  background: #25272d;
+  font: inherit;
+  font-size: 18px;
+  font-weight: 800;
+  cursor: pointer;
+}
+
+.modifier-stepper button:hover {
+  background: #31343b;
+}
+
+.modifier-stepper output {
+  display: grid;
+  min-width: 0;
+  place-items: center;
+  color: #f2f0ea;
+  font-size: 13px;
+  font-weight: 900;
+}
+
 .roll-state-control {
   grid-auto-flow: row;
   grid-template-columns: repeat(5, minmax(0, 1fr));
@@ -313,6 +355,12 @@ h1 {
   border-radius: 7px;
   background: #181a1f;
   text-transform: none;
+}
+
+.hidden-toggle-heading {
+  align-self: center;
+  min-height: 36px;
+  white-space: nowrap;
 }
 
 .empty-state,
@@ -349,6 +397,27 @@ h1 {
 .roll-card-hidden {
   border-top-color: #6d7380;
   opacity: 0.9;
+}
+
+.roll-card-fresh {
+  animation: fresh-roll-pulse 2.6s ease-out;
+}
+
+@keyframes fresh-roll-pulse {
+  0% {
+    border-color: rgba(118, 172, 210, 0.95);
+    box-shadow:
+      0 0 0 1px rgba(118, 172, 210, 0.36),
+      0 8px 24px rgba(33, 86, 129, 0.34);
+  }
+  70% {
+    border-color: #3b3f47;
+    box-shadow: 0 2px 8px rgba(0, 0, 0, 0.28);
+  }
+  100% {
+    border-color: #3b3f47;
+    box-shadow: 0 2px 8px rgba(0, 0, 0, 0.28);
+  }
 }
 
 .roll-card-header,
@@ -859,6 +928,19 @@ h1 {
   .roll-card-main,
   .manual-roll-heading {
     flex-direction: column;
+  }
+
+  .manual-roll-actions {
+    width: 100%;
+  }
+
+  .manual-roll-actions .hidden-toggle {
+    flex: 1;
+  }
+
+  .manual-roll-actions .roll-command {
+    flex: 1;
+    width: auto;
   }
 
   .rolls-header button,
