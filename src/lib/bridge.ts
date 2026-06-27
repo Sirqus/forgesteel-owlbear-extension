@@ -10,6 +10,10 @@ export type ForgeSteelRollPayload = {
   label: string
   formula: string
   total: number
+  naturalTotal?: number
+  tier?: 1 | 2 | 3
+  baseTier?: 1 | 2 | 3
+  rollState?: string
   breakdown?: string
   context?: ForgeSteelRollContext
 }
@@ -61,6 +65,7 @@ export type OwlbearDefaultOptionsPayload = {
   shownStandardAbilities: 'all' | string[]
   compactView: boolean
   abilityWidth: 'Narrow' | 'Medium' | 'Wide' | 'Extra Wide'
+  themeMode: 'light' | 'dark' | 'system'
 }
 
 export type OwlbearApplyDefaultOptionsMessage = {
@@ -181,6 +186,7 @@ function createDefaultOptionsMessage(): OwlbearApplyDefaultOptionsMessage {
       shownStandardAbilities: 'all',
       compactView: false,
       abilityWidth: 'Narrow',
+      themeMode: 'dark',
     },
   }
 }
@@ -227,6 +233,10 @@ function isRollPayload(payload: unknown): payload is ForgeSteelRollPayload {
     typeof payload.formula === 'string' &&
     typeof payload.total === 'number' &&
     Number.isFinite(payload.total) &&
+    optionalFiniteNumber(payload.naturalTotal) &&
+    optionalTier(payload.tier) &&
+    optionalTier(payload.baseTier) &&
+    optionalString(payload.rollState) &&
     (payload.breakdown === undefined || typeof payload.breakdown === 'string') &&
     (payload.context === undefined || isRollContext(payload.context))
   )
@@ -277,6 +287,14 @@ function isRollContext(value: unknown): value is ForgeSteelRollContext {
 
 function optionalString(value: unknown): boolean {
   return value === undefined || typeof value === 'string'
+}
+
+function optionalFiniteNumber(value: unknown): boolean {
+  return value === undefined || (typeof value === 'number' && Number.isFinite(value))
+}
+
+function optionalTier(value: unknown): boolean {
+  return value === undefined || value === 1 || value === 2 || value === 3
 }
 
 function optionalStringArray(value: unknown): boolean {

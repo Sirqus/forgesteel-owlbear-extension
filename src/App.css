@@ -41,10 +41,10 @@ h1 {
 .rolls-header button,
 .roll-command {
   min-height: 36px;
-  border: 1px solid #cad3df;
+  border: 1px solid #454951;
   border-radius: 7px;
-  color: #2b333d;
-  background: #f8fafc;
+  color: #f2f0ea;
+  background: #25272d;
   font: inherit;
   font-weight: 700;
   cursor: pointer;
@@ -52,7 +52,7 @@ h1 {
 
 .rolls-header button:hover,
 .roll-command:hover {
-  background: #e7edf4;
+  background: #31343b;
 }
 
 .tabs button {
@@ -103,15 +103,16 @@ h1 {
 .rolls-header p,
 .roll-list p,
 .roll-list time {
-  color: #5f6f82;
+  color: #a5abb4;
 }
 
 .panel-rolls {
   padding: 14px;
+  color: #f2f0ea;
   overflow: auto;
   background:
-    linear-gradient(180deg, rgba(255, 255, 255, 0.65), rgba(238, 242, 247, 0.7)),
-    #eef2f7;
+    linear-gradient(180deg, rgba(32, 33, 36, 0.96), rgba(20, 21, 24, 0.98)),
+    #17181b;
 }
 
 .rolls-header {
@@ -142,11 +143,11 @@ h1 {
   gap: 12px;
   margin-bottom: 14px;
   padding: 12px;
-  border: 1px solid #cfd8e5;
-  border-top: 3px solid #9a3629;
+  border: 1px solid #3b3f47;
+  border-top: 3px solid #b64a39;
   border-radius: 8px;
-  background: #ffffff;
-  box-shadow: 0 2px 6px rgba(24, 39, 55, 0.08);
+  background: #202126;
+  box-shadow: 0 2px 8px rgba(0, 0, 0, 0.32);
 }
 
 .manual-roll-heading {
@@ -158,24 +159,24 @@ h1 {
 
 .manual-roll-heading h3 {
   margin: 0 0 2px;
-  color: #20242a;
+  color: #f2f0ea;
   font-size: 15px;
 }
 
 .manual-roll-heading p {
-  color: #5f6f82;
+  color: #a5abb4;
   font-size: 12px;
 }
 
 .roll-command {
   min-width: 72px;
   color: #ffffff;
-  border-color: #7c2c23;
-  background: #9a3629;
+  border-color: #9f3c2f;
+  background: #b64a39;
 }
 
 .roll-command:hover {
-  background: #7c2c23;
+  background: #9f3c2f;
 }
 
 .manual-roll-controls {
@@ -189,7 +190,7 @@ h1 {
   display: grid;
   gap: 5px;
   min-width: 0;
-  color: #536274;
+  color: #b7bdc6;
   font-size: 11px;
   font-weight: 800;
   text-transform: uppercase;
@@ -203,11 +204,11 @@ h1 {
   width: 100%;
   min-height: 32px;
   box-sizing: border-box;
-  border: 1px solid #cad3df;
+  border: 1px solid #454951;
   border-radius: 6px;
   padding: 0 8px;
-  color: #20242a;
-  background: #f8fafc;
+  color: #f2f0ea;
+  background: #181a1f;
   font: inherit;
   font-size: 13px;
   font-weight: 700;
@@ -219,9 +220,9 @@ h1 {
   grid-auto-columns: 1fr;
   gap: 2px;
   padding: 3px;
-  border: 1px solid #d8e0ea;
+  border: 1px solid #454951;
   border-radius: 7px;
-  background: #f3f6f9;
+  background: #181a1f;
 }
 
 .segmented-control button {
@@ -229,7 +230,7 @@ h1 {
   min-height: 26px;
   border: 0;
   border-radius: 5px;
-  color: #536274;
+  color: #b7bdc6;
   background: transparent;
   font: inherit;
   font-size: 11px;
@@ -238,9 +239,9 @@ h1 {
 }
 
 .segmented-control button.active {
-  color: #20242a;
-  background: #ffffff;
-  box-shadow: 0 1px 2px rgba(24, 39, 55, 0.12);
+  color: #f2f0ea;
+  background: #353942;
+  box-shadow: 0 1px 2px rgba(0, 0, 0, 0.36);
 }
 
 .roll-state-control {
@@ -254,19 +255,19 @@ h1 {
   align-self: end;
   min-height: 32px;
   padding: 0 8px;
-  border: 1px solid #d8e0ea;
+  border: 1px solid #454951;
   border-radius: 7px;
-  background: #f8fafc;
+  background: #181a1f;
   text-transform: none;
 }
 
 .latest-roll,
 .empty-state,
 .roll-card {
-  border: 1px solid #d8e0ea;
+  border: 1px solid #3b3f47;
   border-radius: 8px;
-  background: #ffffff;
-  box-shadow: 0 1px 2px rgba(24, 39, 55, 0.05);
+  background: #202126;
+  box-shadow: 0 2px 8px rgba(0, 0, 0, 0.28);
 }
 
 .latest-roll {
@@ -279,7 +280,7 @@ h1 {
 }
 
 .latest-roll span {
-  color: #5f6f82;
+  color: #a5abb4;
   font-size: 12px;
   font-weight: 700;
   text-transform: uppercase;
@@ -312,9 +313,10 @@ h1 {
 
 .roll-card {
   display: grid;
-  gap: 9px;
-  padding: 12px;
+  gap: 0;
+  padding: 0;
   border-top: 3px solid #215681;
+  overflow: hidden;
 }
 
 .roll-card-hidden {
@@ -334,7 +336,27 @@ h1 {
 }
 
 .roll-card-header {
+  flex-wrap: wrap;
   justify-content: space-between;
+}
+
+.roll-card-summary {
+  display: grid;
+  gap: 10px;
+  width: 100%;
+  border: 0;
+  padding: 12px;
+  color: inherit;
+  background: transparent;
+  font: inherit;
+  text-align: left;
+  cursor: pointer;
+}
+
+.roll-card-summary:hover,
+.roll-card-summary:focus-visible {
+  background: rgba(255, 255, 255, 0.035);
+  outline: none;
 }
 
 .player-chip {
@@ -342,12 +364,19 @@ h1 {
   align-items: center;
   gap: 6px;
   min-width: 0;
-  color: #536274;
+  color: #c3c8d0;
   font-size: 12px;
   font-weight: 800;
 }
 
+.player-chip span:last-child {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
 .player-avatar {
+  flex: 0 0 auto;
   display: inline-grid;
   width: 20px;
   height: 20px;
@@ -368,10 +397,10 @@ h1 {
   align-items: center;
   min-height: 20px;
   padding: 0 7px;
-  border: 1px solid #d8e0ea;
+  border: 1px solid #454951;
   border-radius: 999px;
-  color: #536274;
-  background: #f8fafc;
+  color: #c3c8d0;
+  background: #181a1f;
   font-size: 11px;
   font-weight: 800;
 }
@@ -380,9 +409,17 @@ h1 {
   justify-content: space-between;
 }
 
-.roll-card-main div {
+.roll-card-title {
   display: grid;
   gap: 2px;
+  min-width: 0;
+}
+
+.roll-card-title strong,
+.roll-card-title span {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
 }
 
 .roll-card-main strong {
@@ -391,27 +428,99 @@ h1 {
 
 .roll-card-main span,
 .roll-formula span {
-  color: #5f6f82;
+  color: #a5abb4;
 }
 
-.roll-card-main b {
-  min-width: 48px;
-  padding: 6px 8px;
+.roll-score-grid {
+  display: grid;
+  grid-template-columns: repeat(3, minmax(58px, 1fr));
+  gap: 6px;
+  width: min(230px, 48%);
+  min-width: 190px;
+}
+
+.roll-score-box {
+  display: grid;
+  min-height: 56px;
+  place-items: center;
+  align-content: center;
+  gap: 1px;
+  padding: 5px 6px;
+  border: 1px solid #454951;
   border-radius: 7px;
-  color: #ffffff;
-  background: #215681;
+  color: #f2f0ea;
+  background: #181a1f;
   text-align: center;
-  font-size: 24px;
+}
+
+.roll-score-box span {
+  color: #a5abb4;
+  font-size: 10px;
+  font-weight: 900;
+  letter-spacing: 0;
+}
+
+.roll-score-box strong {
+  color: #f2f0ea;
+  font-size: 22px;
+  line-height: 1;
+}
+
+.roll-score-box small {
+  color: #f1c27a;
+  font-size: 9px;
+  font-weight: 900;
+  line-height: 1;
+}
+
+.roll-score-total {
+  border-color: #2f6f9c;
+  background: #215681;
+}
+
+.roll-score-total span,
+.roll-score-total strong {
+  color: #ffffff;
+}
+
+.roll-score-tier.roll-score-shifted {
+  border-color: #c98735;
+  box-shadow: inset 0 0 0 1px rgba(201, 135, 53, 0.28);
 }
 
 .roll-formula {
-  justify-content: flex-start;
+  justify-content: space-between;
+  flex-wrap: wrap;
+  gap: 6px;
   min-height: 28px;
   padding: 0 9px;
   border-radius: 6px;
-  background: #f3f6f9;
+  background: #181a1f;
   font-size: 12px;
   font-weight: 800;
+}
+
+.roll-formula em {
+  color: #f1c27a;
+  font-style: normal;
+}
+
+.expand-indicator {
+  display: inline-grid;
+  width: 20px;
+  height: 20px;
+  place-items: center;
+  border-radius: 999px;
+  color: #a5abb4;
+  background: #181a1f;
+  font-size: 14px;
+  line-height: 1;
+  transform: rotate(180deg);
+  transition: transform 0.16s ease;
+}
+
+.expand-indicator.expanded {
+  transform: rotate(0deg);
 }
 
 .roll-card p,
@@ -424,14 +533,49 @@ h1 {
   font-size: 12px;
 }
 
+.roll-card-details {
+  display: grid;
+  gap: 9px;
+  padding: 0 12px 12px;
+}
+
+.roll-breakdown,
+.tier-shift-note {
+  display: grid;
+  gap: 2px;
+  padding: 9px;
+  border: 1px solid #3b3f47;
+  border-radius: 7px;
+  background: #181a1f;
+  font-size: 12px;
+}
+
+.roll-breakdown strong {
+  color: #76acd2;
+  font-size: 11px;
+  text-transform: uppercase;
+}
+
+.roll-breakdown span {
+  color: #d9dde2;
+  line-height: 1.35;
+}
+
+.tier-shift-note {
+  color: #f1c27a;
+  border-color: rgba(201, 135, 53, 0.6);
+  background: rgba(201, 135, 53, 0.08);
+  font-weight: 800;
+}
+
 .ability-details {
   display: grid;
   gap: 8px;
   margin-top: 2px;
   padding: 10px;
-  border: 1px solid #e0e6ee;
+  border: 1px solid #3b3f47;
   border-radius: 7px;
-  background: #fbfcfe;
+  background: #181a1f;
 }
 
 .ability-title-row {
@@ -439,20 +583,20 @@ h1 {
 }
 
 .ability-title-row span {
-  color: #9a3629;
+  color: #e06650;
   font-size: 12px;
   font-weight: 800;
 }
 
 .ability-fields {
   flex-wrap: wrap;
-  color: #536274;
+  color: #c3c8d0;
   font-size: 12px;
 }
 
 .ability-fields span {
   padding-right: 8px;
-  border-right: 1px solid #d8e0ea;
+  border-right: 1px solid #454951;
 }
 
 .ability-fields span:last-child {
@@ -470,18 +614,18 @@ h1 {
   display: grid;
   gap: 2px;
   padding-top: 6px;
-  border-top: 1px solid #e0e6ee;
+  border-top: 1px solid #3b3f47;
 }
 
 .ability-section-list strong,
 .tier-list strong {
-  color: #215681;
+  color: #76acd2;
   font-size: 12px;
 }
 
 .ability-section-list span,
 .tier-list span {
-  color: #4f5f70;
+  color: #d9dde2;
   font-size: 12px;
   line-height: 1.35;
 }
@@ -652,6 +796,17 @@ h1 {
   .rolls-header button,
   .roll-command {
     width: 100%;
+  }
+
+  .roll-score-grid {
+    width: 100%;
+    min-width: 0;
+  }
+
+  .roll-formula {
+    align-items: flex-start;
+    flex-direction: column;
+    padding: 7px 9px;
   }
 
   .manual-roll-controls {

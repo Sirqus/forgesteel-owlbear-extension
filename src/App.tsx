@@ -79,6 +79,30 @@ const MANUAL_ROLL_STATES: Array<{
   { value: 'doubleEdge', label: '2 Edge' },
 ]
 
+function RollScoreBox({
+  label,
+  value,
+  tone = 'neutral',
+  note,
+}: {
+  label: string
+  value: string | number
+  tone?: 'neutral' | 'total' | 'tier'
+  note?: string
+}) {
+  return (
+    <span
+      className={`roll-score-box roll-score-${tone} ${
+        note ? 'roll-score-shifted' : ''
+      }`}
+    >
+      <span>{label}</span>
+      <strong>{value}</strong>
+      {note && <small>{note}</small>}
+    </span>
+  )
+}
+
 function App() {
   const [activeTab, setActiveTab] = useState<ActiveTab>('forgesteel')
   const [rolls, setRolls] = useState<StoredRoll[]>(() => loadStoredRolls())
@@ -100,6 +124,9 @@ function App() {
     useState<ManualRollState>('standard')
   const [manualHidden, setManualHidden] = useState(false)
   const [manualPanelOpen, setManualPanelOpen] = useState(false)
+  const [expandedRollIds, setExpandedRollIds] = useState<Set<string>>(
+    () => new Set(),
+  )
   const iframeRef = useRef<HTMLIFrameElement>(null)
   const localPlayerRef = useRef<RollPlayer | undefined>(undefined)
 
@@ -304,6 +331,20 @@ function App() {
     void broadcastRoll(message, visibility)
   }
 
+  function toggleRollExpanded(rollId: string) {
+    setExpandedRollIds((currentIds) => {
+      const nextIds = new Set(currentIds)
+
+      if (nextIds.has(rollId)) {
+        nextIds.delete(rollId)
+      } else {
+        nextIds.add(rollId)
+      }
+
+      return nextIds
+    })
+  }
+
   return (
     <main className={`extension-shell ${isResizing ? 'resizing' : ''}`}>
       <h1 className="sr-only">ForgeSteel Owlbear Extension</h1>
@@ -443,113 +484,179 @@ function App() {
           <div className="empty-state">
             <strong>No rolls yet</strong>
             <span>
-              Use a local ForgeSteel bridge build or the dev test button to
-              send roll events here.
+              Roll from ForgeSteel or open the table roller to send a roll
+              event here.
             </span>
           </div>
         ) : (
           <ol className="roll-list">
-            {rolls.map((roll) => (
-              <li
-                key={roll.id}
-                className={`roll-card ${
-                  roll.visibility === 'hidden' ? 'roll-card-hidden' : ''
-                }`}
-              >
-                <div className="roll-card-header">
-                  <div className="player-chip">
-                    <span
-                      className="player-avatar"
-                      style={{
-                        backgroundColor: roll.player?.color || '#215681',
-                      }}
-                    >
-                      {getPlayerInitial(roll)}
-                    </span>
-                    <span>{getPlayerName(roll)}</span>
-                  </div>
-                  <div className="roll-card-badges">
-                    <span>{roll.source === 'manual' ? 'Manual' : 'ForgeSteel'}</span>
-                    {roll.visibility === 'hidden' && <span>Hidden</span>}
-                  </div>
-                  <time dateTime={roll.timestamp}>
-                    {formatRollTime(roll.timestamp)}
-                  </time>
-                </div>
+            {rolls.map((roll) => {
+              const expanded = expandedRollIds.has(roll.id)
 
-                <div className="roll-card-main">
-                  <div>
-                    <strong>{roll.actorName}</strong>
-                    <span>{roll.label}</span>
-                  </div>
-                  <b>{roll.total}</b>
-                </div>
+              return (
+                <li
+                  key={roll.id}
+                  className={`roll-card ${
+                    roll.visibility === 'hidden' ? 'roll-card-hidden' : ''
+                  }`}
+                >
+                  <button
+                    type="button"
+                    className="roll-card-summary"
+                    aria-expanded={expanded}
+                    onClick={() => toggleRollExpanded(roll.id)}
+                  >
+                    <div className="roll-card-header">
+                      <div className="player-chip">
+                        <span
+                          className="player-avatar"
+                          style={{
+                            backgroundColor: roll.player?.color || '#215681',
+                          }}
+                        >
+                          {getPlayerInitial(roll)}
+                        </span>
+                        <span>{getPlayerName(roll)}</span>
+                      </div>
+                      <div className="roll-card-badges">
+                        <span>
+                          {roll.source === 'manual' ? 'Manual' : 'ForgeSteel'}
+                        </span>
+                        {roll.visibility === 'hidden' && <span>Hidden</span>}
+                      </div>
+                      <time dateTime={roll.timestamp}>
+                        {formatRollTime(roll.timestamp)}
+                      </time>
+                      <span
+                        className={`expand-indicator ${
+                          expanded ? 'expanded' : ''
+                        }`}
+                        aria-hidden="true"
+                      >
+                        ^
+                      </span>
+                    </div>
 
-                <div className="roll-formula">
-                  <span>{roll.formula}</span>
-                </div>
+                    <div className="roll-card-main">
+                      <div className="roll-card-title">
+                        <strong>{roll.actorName}</strong>
+                        <span>{getAbilityName(roll)}</span>
+                      </div>
+                      <div className="roll-score-grid">
+                        <RollScoreBox
+                          label="NAT"
+                          value={formatOptionalNumber(roll.naturalTotal)}
+                        />
+                        <RollScoreBox
+                          label="TOTAL"
+                          value={roll.total}
+                          tone="total"
+                        />
+                        <RollScoreBox
+                          label="TIER"
+                          value={formatTierValue(roll)}
+                          tone="tier"
+                          note={getTierAdjustmentLabel(roll)}
+                        />
+                      </div>
+                    </div>
 
-                {roll.breakdown && <p>{roll.breakdown}</p>}
+                    <div className="roll-formula">
+                      <span>{roll.formula}</span>
+                      {roll.rollState &&
+                        roll.rollState !== 'Standard Roll' &&
+                        roll.rollState !== 'Standard' && (
+                          <em>{roll.rollState}</em>
+                        )}
+                    </div>
+                  </button>
 
-                {roll.context?.details && (
-                  <div className="ability-details">
-                    <div className="ability-title-row">
-                      <strong>{roll.context.details.name || roll.label}</strong>
-                      {roll.context.details.type && (
-                        <span>{roll.context.details.type}</span>
+                  {expanded && (
+                    <div className="roll-card-details">
+                      {roll.breakdown && (
+                        <div className="roll-breakdown">
+                          <strong>Roll</strong>
+                          <span>{roll.breakdown}</span>
+                        </div>
+                      )}
+
+                      {isTierShifted(roll) && (
+                        <div className="tier-shift-note">
+                          {roll.rollState || 'Tier shift'} moved this from tier{' '}
+                          {roll.baseTier} to tier {roll.tier}.
+                        </div>
+                      )}
+
+                      {roll.context?.details && (
+                        <div className="ability-details">
+                          <div className="ability-title-row">
+                            <strong>
+                              {roll.context.details.name || roll.label}
+                            </strong>
+                            {roll.context.details.type && (
+                              <span>{roll.context.details.type}</span>
+                            )}
+                          </div>
+                          {roll.context.details.description && (
+                            <p>{roll.context.details.description}</p>
+                          )}
+                          <div className="ability-fields">
+                            {roll.context.details.cost && (
+                              <span>Cost: {roll.context.details.cost}</span>
+                            )}
+                            {roll.context.details.distance && (
+                              <span>
+                                Distance: {roll.context.details.distance}
+                              </span>
+                            )}
+                            {roll.context.details.target && (
+                              <span>Target: {roll.context.details.target}</span>
+                            )}
+                            {roll.context.details.trigger && (
+                              <span>
+                                Trigger: {roll.context.details.trigger}
+                              </span>
+                            )}
+                          </div>
+                          {roll.context.details.keywords &&
+                            roll.context.details.keywords.length > 0 && (
+                              <div className="keyword-row">
+                                {roll.context.details.keywords.map((keyword) => (
+                                  <span key={keyword}>{keyword}</span>
+                                ))}
+                              </div>
+                            )}
+                          {roll.context.details.sections &&
+                            roll.context.details.sections.length > 0 && (
+                              <div className="ability-section-list">
+                                {roll.context.details.sections.map(
+                                  (section, index) => (
+                                    <div key={`${section.label}-${index}`}>
+                                      <strong>{section.label}</strong>
+                                      <span>{section.text}</span>
+                                    </div>
+                                  ),
+                                )}
+                              </div>
+                            )}
+                          {roll.context.details.tiers &&
+                            roll.context.details.tiers.length > 0 && (
+                              <div className="tier-list">
+                                {roll.context.details.tiers.map((tier) => (
+                                  <div key={tier.tier}>
+                                    <strong>Tier {tier.tier}</strong>
+                                    <span>{tier.text}</span>
+                                  </div>
+                                ))}
+                              </div>
+                            )}
+                        </div>
                       )}
                     </div>
-                    {roll.context.details.description && (
-                      <p>{roll.context.details.description}</p>
-                    )}
-                    <div className="ability-fields">
-                      {roll.context.details.cost && (
-                        <span>Cost: {roll.context.details.cost}</span>
-                      )}
-                      {roll.context.details.distance && (
-                        <span>Distance: {roll.context.details.distance}</span>
-                      )}
-                      {roll.context.details.target && (
-                        <span>Target: {roll.context.details.target}</span>
-                      )}
-                      {roll.context.details.trigger && (
-                        <span>Trigger: {roll.context.details.trigger}</span>
-                      )}
-                    </div>
-                    {roll.context.details.keywords &&
-                      roll.context.details.keywords.length > 0 && (
-                        <div className="keyword-row">
-                          {roll.context.details.keywords.map((keyword) => (
-                            <span key={keyword}>{keyword}</span>
-                          ))}
-                        </div>
-                      )}
-                    {roll.context.details.sections &&
-                      roll.context.details.sections.length > 0 && (
-                        <div className="ability-section-list">
-                          {roll.context.details.sections.map((section, index) => (
-                            <div key={`${section.label}-${index}`}>
-                              <strong>{section.label}</strong>
-                              <span>{section.text}</span>
-                            </div>
-                          ))}
-                        </div>
-                      )}
-                    {roll.context.details.tiers &&
-                      roll.context.details.tiers.length > 0 && (
-                        <div className="tier-list">
-                          {roll.context.details.tiers.map((tier) => (
-                            <div key={tier.tier}>
-                              <strong>Tier {tier.tier}</strong>
-                              <span>{tier.text}</span>
-                            </div>
-                          ))}
-                        </div>
-                      )}
-                  </div>
-                )}
-              </li>
-            ))}
+                  )}
+                </li>
+              )
+            })}
           </ol>
         )}
       </section>
@@ -646,8 +753,10 @@ function createManualRollMessage({
   rollerName: string
 }): ForgeSteelRollResultMessage {
   const rolls = dice === '2d10' ? [rollD10(), rollD10()] : [rollD10()]
+  const naturalTotal = rolls.reduce((sum, roll) => sum + roll, 0)
   const stateBonus = dice === '2d10' ? getRollStateBonus(rollState) : 0
-  const total = rolls.reduce((sum, roll) => sum + roll, 0) + modifier + stateBonus
+  const total = naturalTotal + modifier + stateBonus
+  const baseTier = dice === '2d10' ? getBasePowerRollTier(total) : undefined
   const tier = dice === '2d10' ? getPowerRollTier(total, rollState) : undefined
   const formula = formatFormula(dice, modifier, stateBonus, rollState)
   const breakdownParts = [
@@ -669,6 +778,10 @@ function createManualRollMessage({
       label: dice === '2d10' ? 'Power Roll' : 'd10 Roll',
       formula,
       total,
+      naturalTotal,
+      tier,
+      baseTier,
+      rollState: getRollStateLabel(rollState),
       breakdown: `${breakdownParts.join(' ')} = ${total}${
         tier ? ` (Tier ${tier})` : ''
       }`,
@@ -708,8 +821,12 @@ function getRollStateBonus(rollState: ManualRollState): number {
   }
 }
 
+function getBasePowerRollTier(total: number): 1 | 2 | 3 {
+  return total >= 17 ? 3 : total >= 12 ? 2 : 1
+}
+
 function getPowerRollTier(total: number, rollState: ManualRollState): 1 | 2 | 3 {
-  let tier: 1 | 2 | 3 = total >= 17 ? 3 : total >= 12 ? 2 : 1
+  let tier = getBasePowerRollTier(total)
 
   if (rollState === 'doubleEdge' && tier < 3) {
     tier = (tier + 1) as 1 | 2 | 3
@@ -752,6 +869,34 @@ function getRollStateLabel(rollState: ManualRollState): string {
     MANUAL_ROLL_STATES.find((state) => state.value === rollState)?.label ||
     'Standard'
   )
+}
+
+function getAbilityName(roll: StoredRoll): string {
+  return roll.context?.details?.name || roll.label
+}
+
+function formatOptionalNumber(value: number | undefined): string {
+  return value === undefined ? '-' : value.toString()
+}
+
+function formatTierValue(roll: StoredRoll): string {
+  return roll.tier === undefined ? '-' : roll.tier.toString()
+}
+
+function isTierShifted(roll: StoredRoll): boolean {
+  return (
+    roll.tier !== undefined &&
+    roll.baseTier !== undefined &&
+    roll.tier !== roll.baseTier
+  )
+}
+
+function getTierAdjustmentLabel(roll: StoredRoll): string | undefined {
+  if (!isTierShifted(roll)) {
+    return undefined
+  }
+
+  return `from ${roll.baseTier}`
 }
 
 function getPlayerName(roll: StoredRoll): string {
