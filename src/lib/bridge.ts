@@ -11,6 +11,29 @@ export type ForgeSteelRollPayload = {
   formula: string
   total: number
   breakdown?: string
+  context?: ForgeSteelRollContext
+}
+
+export type ForgeSteelRollContext = {
+  kind?: 'ability' | 'characteristic' | 'savingThrow' | 'manual'
+  details?: {
+    name?: string
+    description?: string
+    type?: string
+    cost?: string
+    distance?: string
+    target?: string
+    trigger?: string
+    keywords?: string[]
+    sections?: Array<{
+      label: string
+      text: string
+    }>
+    tiers?: Array<{
+      tier: 1 | 2 | 3
+      text: string
+    }>
+  }
 }
 
 export type ForgeSteelBaseMessage = {
@@ -183,7 +206,9 @@ function createDefaultOptionsMessage(): OwlbearApplyDefaultOptionsMessage {
   }
 }
 
-function parseForgeSteelMessage(data: unknown): ForgeSteelBridgeMessage | null {
+export function parseForgeSteelMessage(
+  data: unknown,
+): ForgeSteelBridgeMessage | null {
   if (!isRecord(data)) {
     return null
   }
@@ -223,12 +248,89 @@ function isRollPayload(payload: unknown): payload is ForgeSteelRollPayload {
     typeof payload.formula === 'string' &&
     typeof payload.total === 'number' &&
     Number.isFinite(payload.total) &&
-    (payload.breakdown === undefined || typeof payload.breakdown === 'string')
+    (payload.breakdown === undefined || typeof payload.breakdown === 'string') &&
+    (payload.context === undefined || isRollContext(payload.context))
   )
 }
 
 function isRecord(value: unknown): value is Record<string, unknown> {
   return typeof value === 'object' && value !== null
+}
+
+function isRollContext(value: unknown): value is ForgeSteelRollContext {
+  if (!isRecord(value)) {
+    return false
+  }
+
+  if (
+    value.kind !== undefined &&
+    value.kind !== 'ability' &&
+    value.kind !== 'characteristic' &&
+    value.kind !== 'savingThrow' &&
+    value.kind !== 'manual'
+  ) {
+    return false
+  }
+
+  if (value.details === undefined) {
+    return true
+  }
+
+  if (!isRecord(value.details)) {
+    return false
+  }
+
+  const details = value.details
+
+  return (
+    optionalString(details.name) &&
+    optionalString(details.description) &&
+    optionalString(details.type) &&
+    optionalString(details.cost) &&
+    optionalString(details.distance) &&
+    optionalString(details.target) &&
+    optionalString(details.trigger) &&
+    optionalStringArray(details.keywords) &&
+    optionalLabelTextArray(details.sections) &&
+    optionalTierArray(details.tiers)
+  )
+}
+
+function optionalString(value: unknown): boolean {
+  return value === undefined || typeof value === 'string'
+}
+
+function optionalStringArray(value: unknown): boolean {
+  return (
+    value === undefined ||
+    (Array.isArray(value) && value.every((item) => typeof item === 'string'))
+  )
+}
+
+function optionalLabelTextArray(value: unknown): boolean {
+  return (
+    value === undefined ||
+    (Array.isArray(value) &&
+      value.every(
+        (item) =>
+          isRecord(item) &&
+          typeof item.label === 'string' &&
+          typeof item.text === 'string',
+      ))
+  )
+}
+
+function optionalTierArray(value: unknown): boolean {
+  return (
+    value === undefined ||
+    (Array.isArray(value) &&
+      value.every(
+        (item) =>
+          isRecord(item) &&
+          (item.tier === 1 || item.tier === 2 || item.tier === 3) &&
+          typeof item.text === 'string',
+      ))
+  )
 }
 
 function rollTotal(): number {

@@ -38,7 +38,8 @@ h1 {
   line-height: 1.1;
 }
 
-.roll-toolbar button {
+.rolls-header button,
+.roll-command {
   min-height: 36px;
   border: 1px solid #cad3df;
   border-radius: 7px;
@@ -49,7 +50,8 @@ h1 {
   cursor: pointer;
 }
 
-.roll-toolbar button:hover {
+.rolls-header button:hover,
+.roll-command:hover {
   background: #e7edf4;
 }
 
@@ -98,7 +100,7 @@ h1 {
 
 .iframe-loading span,
 .empty-state span,
-.roll-toolbar p,
+.rolls-header p,
 .roll-list p,
 .roll-list time {
   color: #5f6f82;
@@ -107,9 +109,12 @@ h1 {
 .panel-rolls {
   padding: 14px;
   overflow: auto;
+  background:
+    linear-gradient(180deg, rgba(255, 255, 255, 0.65), rgba(238, 242, 247, 0.7)),
+    #eef2f7;
 }
 
-.roll-toolbar {
+.rolls-header {
   display: flex;
   align-items: flex-start;
   justify-content: space-between;
@@ -117,28 +122,147 @@ h1 {
   margin-bottom: 14px;
 }
 
-.roll-toolbar h2 {
+.rolls-header h2 {
   margin-bottom: 4px;
   font-size: 18px;
 }
 
-.roll-toolbar p {
+.rolls-header p {
   font-size: 13px;
   line-height: 1.4;
 }
 
-.roll-toolbar code {
-  font-size: 12px;
-}
-
-.roll-toolbar button {
+.rolls-header button {
   min-width: 120px;
   padding: 0 12px;
 }
 
+.manual-roll-panel {
+  display: grid;
+  gap: 12px;
+  margin-bottom: 14px;
+  padding: 12px;
+  border: 1px solid #cfd8e5;
+  border-top: 3px solid #9a3629;
+  border-radius: 8px;
+  background: #ffffff;
+  box-shadow: 0 2px 6px rgba(24, 39, 55, 0.08);
+}
+
+.manual-roll-heading {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+}
+
+.manual-roll-heading h3 {
+  margin: 0 0 2px;
+  color: #20242a;
+  font-size: 15px;
+}
+
+.manual-roll-heading p {
+  color: #5f6f82;
+  font-size: 12px;
+}
+
+.roll-command {
+  min-width: 72px;
+  color: #ffffff;
+  border-color: #7c2c23;
+  background: #9a3629;
+}
+
+.roll-command:hover {
+  background: #7c2c23;
+}
+
+.manual-roll-controls {
+  display: grid;
+  grid-template-columns: minmax(92px, 0.8fr) minmax(72px, 0.6fr);
+  gap: 10px;
+}
+
+.control-group,
+.hidden-toggle {
+  display: grid;
+  gap: 5px;
+  min-width: 0;
+  color: #536274;
+  font-size: 11px;
+  font-weight: 800;
+  text-transform: uppercase;
+}
+
+.control-group-wide {
+  grid-column: 1 / -1;
+}
+
+.control-group input[type='number'] {
+  width: 100%;
+  min-height: 32px;
+  box-sizing: border-box;
+  border: 1px solid #cad3df;
+  border-radius: 6px;
+  padding: 0 8px;
+  color: #20242a;
+  background: #f8fafc;
+  font: inherit;
+  font-size: 13px;
+  font-weight: 700;
+}
+
+.segmented-control {
+  display: grid;
+  grid-auto-flow: column;
+  grid-auto-columns: 1fr;
+  gap: 2px;
+  padding: 3px;
+  border: 1px solid #d8e0ea;
+  border-radius: 7px;
+  background: #f3f6f9;
+}
+
+.segmented-control button {
+  min-width: 0;
+  min-height: 26px;
+  border: 0;
+  border-radius: 5px;
+  color: #536274;
+  background: transparent;
+  font: inherit;
+  font-size: 11px;
+  font-weight: 800;
+  cursor: pointer;
+}
+
+.segmented-control button.active {
+  color: #20242a;
+  background: #ffffff;
+  box-shadow: 0 1px 2px rgba(24, 39, 55, 0.12);
+}
+
+.roll-state-control {
+  grid-auto-flow: row;
+  grid-template-columns: repeat(5, minmax(0, 1fr));
+}
+
+.hidden-toggle {
+  grid-template-columns: auto 1fr;
+  align-items: center;
+  align-self: end;
+  min-height: 32px;
+  padding: 0 8px;
+  border: 1px solid #d8e0ea;
+  border-radius: 7px;
+  background: #f8fafc;
+  text-transform: none;
+}
+
 .latest-roll,
 .empty-state,
-.roll-list li {
+.roll-card {
   border: 1px solid #d8e0ea;
   border-radius: 8px;
   background: #ffffff;
@@ -180,42 +304,175 @@ h1 {
 
 .roll-list {
   display: grid;
-  gap: 10px;
+  gap: 12px;
   margin: 0;
   padding: 0;
   list-style: none;
 }
 
-.roll-list li {
+.roll-card {
   display: grid;
-  gap: 8px;
+  gap: 9px;
   padding: 12px;
+  border-top: 3px solid #215681;
 }
 
-.roll-main,
-.roll-result {
+.roll-card-hidden {
+  border-top-color: #6d7380;
+  opacity: 0.9;
+}
+
+.roll-card-header,
+.roll-card-main,
+.roll-formula,
+.ability-title-row,
+.ability-fields,
+.keyword-row {
   display: flex;
-  align-items: baseline;
-  justify-content: space-between;
-  gap: 12px;
+  align-items: center;
+  gap: 8px;
 }
 
-.roll-main span,
-.roll-result span {
+.roll-card-header {
+  justify-content: space-between;
+}
+
+.player-chip {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  min-width: 0;
+  color: #536274;
+  font-size: 12px;
+  font-weight: 800;
+}
+
+.player-avatar {
+  display: inline-grid;
+  width: 20px;
+  height: 20px;
+  place-items: center;
+  border-radius: 999px;
+  color: #ffffff;
+  font-size: 11px;
+}
+
+.roll-card-badges,
+.keyword-row {
+  flex-wrap: wrap;
+}
+
+.roll-card-badges span,
+.keyword-row span {
+  display: inline-flex;
+  align-items: center;
+  min-height: 20px;
+  padding: 0 7px;
+  border: 1px solid #d8e0ea;
+  border-radius: 999px;
+  color: #536274;
+  background: #f8fafc;
+  font-size: 11px;
+  font-weight: 800;
+}
+
+.roll-card-main {
+  justify-content: space-between;
+}
+
+.roll-card-main div {
+  display: grid;
+  gap: 2px;
+}
+
+.roll-card-main strong {
+  font-size: 15px;
+}
+
+.roll-card-main span,
+.roll-formula span {
   color: #5f6f82;
 }
 
-.roll-result b {
-  color: #215681;
+.roll-card-main b {
+  min-width: 48px;
+  padding: 6px 8px;
+  border-radius: 7px;
+  color: #ffffff;
+  background: #215681;
+  text-align: center;
   font-size: 24px;
 }
 
+.roll-formula {
+  justify-content: flex-start;
+  min-height: 28px;
+  padding: 0 9px;
+  border-radius: 6px;
+  background: #f3f6f9;
+  font-size: 12px;
+  font-weight: 800;
+}
+
+.roll-card p,
 .roll-list p {
   font-size: 13px;
   line-height: 1.35;
 }
 
 .roll-list time {
+  font-size: 12px;
+}
+
+.ability-details {
+  display: grid;
+  gap: 8px;
+  margin-top: 2px;
+  padding: 10px;
+  border: 1px solid #e0e6ee;
+  border-radius: 7px;
+  background: #fbfcfe;
+}
+
+.ability-title-row {
+  justify-content: space-between;
+}
+
+.ability-title-row span {
+  color: #9a3629;
+  font-size: 12px;
+  font-weight: 800;
+}
+
+.ability-fields {
+  flex-wrap: wrap;
+  color: #536274;
+  font-size: 12px;
+}
+
+.ability-fields span {
+  padding-right: 8px;
+  border-right: 1px solid #d8e0ea;
+}
+
+.ability-fields span:last-child {
+  border-right: 0;
+}
+
+.tier-list {
+  display: grid;
+  gap: 6px;
+}
+
+.tier-list div {
+  display: grid;
+  gap: 2px;
+  padding-top: 6px;
+  border-top: 1px solid #e0e6ee;
+}
+
+.tier-list strong {
+  color: #215681;
   font-size: 12px;
 }
 
@@ -370,19 +627,28 @@ h1 {
 }
 
 @media (max-width: 420px) {
-  .roll-toolbar,
-  .roll-main,
-  .roll-result {
+  .rolls-header,
+  .roll-card-main,
+  .manual-roll-heading {
     align-items: stretch;
   }
 
-  .roll-toolbar,
-  .roll-main,
-  .roll-result {
+  .rolls-header,
+  .roll-card-main,
+  .manual-roll-heading {
     flex-direction: column;
   }
 
-  .roll-toolbar button {
+  .rolls-header button,
+  .roll-command {
     width: 100%;
+  }
+
+  .manual-roll-controls {
+    grid-template-columns: 1fr;
+  }
+
+  .roll-state-control {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
   }
 }
