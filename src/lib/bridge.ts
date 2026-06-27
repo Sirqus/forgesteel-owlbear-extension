@@ -34,6 +34,21 @@ export type ForgeSteelBridgeMessage =
   | ForgeSteelReadyMessage
   | ForgeSteelRollResultMessage
 
+export type OwlbearDefaultOptionsPayload = {
+  shownStandardAbilities: 'all' | string[]
+  compactView: boolean
+  abilityWidth: 'Narrow' | 'Medium' | 'Wide' | 'Extra Wide'
+}
+
+export type OwlbearApplyDefaultOptionsMessage = {
+  type: 'OWLBEAR_APPLY_DEFAULT_OPTIONS'
+  schemaVersion: 1
+  messageId: string
+  timestamp: string
+  source: 'forgesteel-owlbear'
+  payload: OwlbearDefaultOptionsPayload
+}
+
 export type BridgeEvent =
   | {
       kind: 'ready'
@@ -136,6 +151,36 @@ export function createTestRollMessage(): ForgeSteelRollResultMessage {
 
 export function postLocalTestRoll(): void {
   window.postMessage(createTestRollMessage(), window.location.origin)
+}
+
+export function postDefaultOptionsToForgeSteel(
+  iframe: HTMLIFrameElement | null,
+  targetOrigin: string,
+): boolean {
+  if (!iframe?.contentWindow) {
+    return false
+  }
+
+  iframe.contentWindow.postMessage(
+    createDefaultOptionsMessage(),
+    targetOrigin,
+  )
+  return true
+}
+
+function createDefaultOptionsMessage(): OwlbearApplyDefaultOptionsMessage {
+  return {
+    type: 'OWLBEAR_APPLY_DEFAULT_OPTIONS',
+    schemaVersion: CURRENT_SCHEMA_VERSION,
+    messageId: crypto.randomUUID(),
+    timestamp: new Date().toISOString(),
+    source: 'forgesteel-owlbear',
+    payload: {
+      shownStandardAbilities: 'all',
+      compactView: false,
+      abilityWidth: 'Narrow',
+    },
+  }
 }
 
 function parseForgeSteelMessage(data: unknown): ForgeSteelBridgeMessage | null {

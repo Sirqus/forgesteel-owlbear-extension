@@ -4,6 +4,8 @@ Standalone Owlbear Rodeo extension MVP for embedding ForgeSteel and receiving fu
 
 ## Local Setup
 
+For extension-only development:
+
 ```powershell
 npm.cmd install
 npm.cmd run dev
@@ -16,6 +18,22 @@ http://localhost:5173/manifest.json
 ```
 
 Install that manifest URL through Owlbear Rodeo's extension/install flow while the Vite dev server is running.
+
+For local ForgeSteel bridge testing, run both apps:
+
+```powershell
+cd C:\RPG\forgesteel-source
+npm.cmd run start -- --host 127.0.0.1 --port 5174 --strictPort
+```
+
+```powershell
+cd C:\RPG\forgesteel-owlbear
+npm.cmd run dev -- --host 127.0.0.1 --port 5173 --strictPort
+```
+
+Vite dev mode points the iframe at `http://localhost:5174` by default. Production builds still point at `https://forgesteel.net`, unless `VITE_FORGESTEEL_URL` is set.
+
+The local ForgeSteel bridge work currently lives in `C:\RPG\forgesteel-source` on the `owlbear-roll-bridge` branch. When that app is running on port `5174`, the extension passes `owlbearBridge=1` and `owlbearOrigin=http://localhost:5173` to the iframe so ForgeSteel can post roll messages back to the extension.
 
 ## Development
 

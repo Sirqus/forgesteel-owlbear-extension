@@ -2,12 +2,14 @@ import {
   type PointerEvent as ReactPointerEvent,
   useEffect,
   useMemo,
+  useRef,
   useState,
 } from 'react'
 import './App.css'
 import {
   type BridgeRejectEvent,
   listenForForgeSteelMessages,
+  postDefaultOptionsToForgeSteel,
   postLocalTestRoll,
 } from './lib/bridge'
 import {
@@ -23,7 +25,13 @@ import {
   type OwlbearAdapterState,
 } from './lib/owlbear'
 
-const FORGESTEEL_URL = 'https://forgesteel.net'
+const DEFAULT_FORGESTEEL_URL = import.meta.env.DEV
+  ? 'http://localhost:5174'
+  : 'https://forgesteel.net'
+const FORGESTEEL_BASE_URL =
+  import.meta.env.VITE_FORGESTEEL_URL || DEFAULT_FORGESTEEL_URL
+const FORGESTEEL_ORIGIN = new URL(FORGESTEEL_BASE_URL).origin
+const FORGESTEEL_URL = createForgeSteelUrl()
 const PANEL_SIZE_STORAGE_KEY = 'net.forgesteel.owlbear.panelSize.v1'
 const DEFAULT_PANEL_SIZE: PanelSize = {
   label: 'Default',
@@ -62,6 +70,7 @@ function App() {
   const [panelSize, setPanelSize] = useState<PanelSize>(loadPanelSize)
   const [iframeLoaded, setIframeLoaded] = useState(false)
   const [isResizing, setIsResizing] = useState(false)
+  const iframeRef = useRef<HTMLIFrameElement>(null)
 
   useEffect(() => {
     let active = true
@@ -93,12 +102,14 @@ function App() {
 
   useEffect(() => {
     return listenForForgeSteelMessages({
+      allowedOrigins: [FORGESTEEL_ORIGIN],
       onEvent: (event) => {
         if (event.kind === 'ready') {
           setBridgeStatus({
             state: 'ready',
             message: `ForgeSteel bridge ready from ${event.origin}.`,
           })
+          queueForgeSteelDefaultOptions()
           return
         }
 
@@ -174,6 +185,16 @@ function App() {
     window.addEventListener('pointercancel', handlePointerUp)
   }
 
+  function queueForgeSteelDefaultOptions() {
+    postDefaultOptionsToForgeSteel(iframeRef.current, FORGESTEEL_ORIGIN)
+    window.setTimeout(() => {
+      postDefaultOptionsToForgeSteel(iframeRef.current, FORGESTEEL_ORIGIN)
+    }, 250)
+    window.setTimeout(() => {
+      postDefaultOptionsToForgeSteel(iframeRef.current, FORGESTEEL_ORIGIN)
+    }, 1000)
+  }
+
   return (
     <main className={`extension-shell ${isResizing ? 'resizing' : ''}`}>
       <h1 className="sr-only">ForgeSteel Owlbear Extension</h1>
@@ -194,9 +215,13 @@ function App() {
           </div>
         )}
         <iframe
+          ref={iframeRef}
           title="ForgeSteel"
           src={FORGESTEEL_URL}
-          onLoad={() => setIframeLoaded(true)}
+          onLoad={() => {
+            setIframeLoaded(true)
+            queueForgeSteelDefaultOptions()
+          }}
           referrerPolicy="strict-origin-when-cross-origin"
           allow="clipboard-read; clipboard-write"
         />
@@ -210,7 +235,7 @@ function App() {
           <div>
             <h2>Roll Feed</h2>
             <p>
-              Bridge-ready feed for future ForgeSteel
+              Bridge-ready feed for ForgeSteel
               <code> FORGESTEEL_ROLL_RESULT </code>
               messages.
             </p>
@@ -234,8 +259,8 @@ function App() {
           <div className="empty-state">
             <strong>No rolls yet</strong>
             <span>
-              ForgeSteel does not emit roll bridge events yet. Use the dev test
-              button while building the upstream bridge.
+              Use a local ForgeSteel bridge build or the dev test button to
+              send roll events here.
             </span>
           </div>
         ) : (
@@ -306,6 +331,13 @@ function App() {
       />
     </main>
   )
+}
+
+function createForgeSteelUrl(): string {
+  const url = new URL(FORGESTEEL_BASE_URL)
+  url.searchParams.set('owlbearBridge', '1')
+  url.searchParams.set('owlbearOrigin', window.location.origin)
+  return url.toString()
 }
 
 function snapCustomPanelSize({
