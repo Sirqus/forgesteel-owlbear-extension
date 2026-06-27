@@ -1,7 +1,6 @@
 import {
   type PointerEvent as ReactPointerEvent,
   useEffect,
-  useMemo,
   useRef,
   useState,
 } from 'react'
@@ -72,11 +71,11 @@ const MANUAL_ROLL_STATES: Array<{
   value: ManualRollState
   label: string
 }> = [
-  { value: 'doubleBane', label: '2 Bane' },
+  { value: 'doubleBane', label: 'Double Bane' },
   { value: 'bane', label: 'Bane' },
   { value: 'standard', label: 'Standard' },
   { value: 'edge', label: 'Edge' },
-  { value: 'doubleEdge', label: '2 Edge' },
+  { value: 'doubleEdge', label: 'Double Edge' },
 ]
 
 function RollScoreBox({
@@ -124,6 +123,7 @@ function App() {
     useState<ManualRollState>('standard')
   const [manualHidden, setManualHidden] = useState(false)
   const [manualPanelOpen, setManualPanelOpen] = useState(false)
+  const [clearConfirmOpen, setClearConfirmOpen] = useState(false)
   const [expandedRollIds, setExpandedRollIds] = useState<Set<string>>(
     () => new Set(),
   )
@@ -249,7 +249,6 @@ function App() {
     }
   }, [])
 
-  const latestRoll = useMemo(() => rolls.at(0), [rolls])
   const activePanelSize = panelSize
 
   function handleResizeGripPointerDown(
@@ -345,6 +344,13 @@ function App() {
     })
   }
 
+  function clearRollFeed() {
+    setRolls([])
+    saveStoredRolls([])
+    setExpandedRollIds(new Set())
+    setClearConfirmOpen(false)
+  }
+
   return (
     <main className={`extension-shell ${isResizing ? 'resizing' : ''}`}>
       <h1 className="sr-only">ForgeSteel Owlbear Extension</h1>
@@ -388,12 +394,22 @@ function App() {
               Shared table rolls from ForgeSteel and the manual roll panel.
             </p>
           </div>
-          <button
-            type="button"
-            onClick={() => setManualPanelOpen((open) => !open)}
-          >
-            {manualPanelOpen ? 'Close Roller' : 'Table Roller'}
-          </button>
+          <div className="rolls-header-actions">
+            <button
+              type="button"
+              onClick={() => setManualPanelOpen((open) => !open)}
+            >
+              {manualPanelOpen ? 'Close Roller' : 'Table Roller'}
+            </button>
+            <button
+              type="button"
+              className="subtle-command"
+              disabled={rolls.length === 0}
+              onClick={() => setClearConfirmOpen(true)}
+            >
+              Clear
+            </button>
+          </div>
         </div>
 
         {manualPanelOpen && (
@@ -470,14 +486,6 @@ function App() {
               </label>
             </div>
           </section>
-        )}
-
-        {latestRoll && (
-          <div className="latest-roll">
-            <span>Latest</span>
-            <strong>{latestRoll.actorName}</strong>
-            <b>{latestRoll.total}</b>
-          </div>
         )}
 
         {rolls.length === 0 ? (
@@ -658,6 +666,44 @@ function App() {
               )
             })}
           </ol>
+        )}
+
+        {clearConfirmOpen && (
+          <div
+            className="confirm-backdrop"
+            role="presentation"
+            onClick={() => setClearConfirmOpen(false)}
+          >
+            <section
+              className="confirm-dialog"
+              role="dialog"
+              aria-modal="true"
+              aria-labelledby="clear-rolls-title"
+              onClick={(event) => event.stopPropagation()}
+            >
+              <h3 id="clear-rolls-title">Clear Roll Feed</h3>
+              <p>
+                This removes all locally stored rolls from this extension panel.
+                Shared rolls already seen by other players are not recalled.
+              </p>
+              <div className="confirm-actions">
+                <button
+                  type="button"
+                  className="subtle-command"
+                  onClick={() => setClearConfirmOpen(false)}
+                >
+                  Cancel
+                </button>
+                <button
+                  type="button"
+                  className="danger-command"
+                  onClick={clearRollFeed}
+                >
+                  Clear rolls
+                </button>
+              </div>
+            </section>
+          </div>
         )}
       </section>
 
