@@ -4,6 +4,13 @@
   grid-template-rows: minmax(0, 1fr) auto;
   height: 100vh;
   min-height: 0;
+  color: #f2f0ea;
+  background:
+    linear-gradient(180deg, rgba(32, 33, 36, 0.96), rgba(20, 21, 24, 0.98)),
+    #17181b;
+}
+
+.extension-shell.theme-light {
   color: #20242a;
   background:
     linear-gradient(180deg, rgba(255, 255, 255, 0.92), rgba(245, 247, 250, 0.92)),
@@ -108,6 +115,110 @@ h1 {
 .iframe-loading strong {
   color: #20242a;
   font-size: 16px;
+}
+
+.roll-notice-stack {
+  position: absolute;
+  top: 10px;
+  left: 50%;
+  z-index: 60;
+  display: grid;
+  width: min(440px, calc(100% - 22px));
+  gap: 8px;
+  transform: translateX(-50%);
+  pointer-events: none;
+}
+
+.roll-notice {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) auto 24px;
+  align-items: center;
+  gap: 10px;
+  padding: 10px 10px 10px 12px;
+  border: 1px solid rgba(118, 172, 210, 0.48);
+  border-left: 4px solid #76acd2;
+  border-radius: 8px;
+  color: #f2f0ea;
+  background:
+    linear-gradient(135deg, rgba(33, 86, 129, 0.28), rgba(23, 24, 27, 0.98)),
+    #202126;
+  box-shadow: 0 14px 36px rgba(0, 0, 0, 0.48);
+  animation: roll-notice-enter 0.18s ease-out;
+  pointer-events: auto;
+}
+
+.roll-notice > div:first-child {
+  display: grid;
+  min-width: 0;
+  gap: 2px;
+}
+
+.roll-notice strong,
+.roll-notice span {
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.roll-notice > div:first-child span {
+  color: #b7bdc6;
+  font-size: 12px;
+  font-weight: 800;
+}
+
+.roll-notice-scores {
+  display: flex;
+  gap: 5px;
+}
+
+.roll-notice-scores span {
+  display: grid;
+  min-width: 46px;
+  gap: 1px;
+  place-items: center;
+  padding: 5px 6px;
+  border: 1px solid #454951;
+  border-radius: 6px;
+  color: #a5abb4;
+  background: #181a1f;
+  font-size: 9px;
+  font-weight: 900;
+}
+
+.roll-notice-scores strong {
+  color: #ffffff;
+  font-size: 16px;
+  line-height: 1;
+}
+
+.roll-notice button {
+  width: 24px;
+  height: 24px;
+  border: 1px solid #454951;
+  border-radius: 999px;
+  color: #b7bdc6;
+  background: #181a1f;
+  font: inherit;
+  font-size: 12px;
+  font-weight: 900;
+  cursor: pointer;
+}
+
+.roll-notice button:hover {
+  color: #f2f0ea;
+  border-color: #666c76;
+}
+
+@keyframes roll-notice-enter {
+  from {
+    opacity: 0;
+    transform: translateY(-6px);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0);
+  }
 }
 
 .iframe-loading span,
@@ -420,6 +531,26 @@ h1 {
 .roll-card-hidden {
   border-top-color: #6d7380;
   opacity: 0.9;
+}
+
+.roll-card-mine {
+  border-color: rgba(140, 168, 90, 0.64);
+  background:
+    linear-gradient(135deg, rgba(140, 168, 90, 0.12), rgba(32, 33, 38, 0.96)),
+    #202126;
+}
+
+.roll-card-mine:not(.damage-card) {
+  border-top-color: #8ca85a;
+}
+
+.damage-card.roll-card-mine {
+  border-top-color: #c98735;
+}
+
+.roll-card-mine .roll-card-summary:hover,
+.roll-card-mine .roll-card-summary:focus-visible {
+  background: rgba(140, 168, 90, 0.08);
 }
 
 .roll-card-fresh {
@@ -769,7 +900,13 @@ h1 {
   line-height: 1.4;
 }
 
-.director-header > span,
+.director-header-tools {
+  display: grid;
+  justify-items: end;
+  gap: 8px;
+}
+
+.director-player-count,
 .director-card-badges span {
   display: inline-flex;
   align-items: center;
@@ -782,6 +919,38 @@ h1 {
   font-size: 11px;
   font-weight: 800;
   white-space: nowrap;
+}
+
+.director-view-switcher {
+  display: inline-grid;
+  grid-template-columns: repeat(2, minmax(72px, 1fr));
+  gap: 2px;
+  padding: 3px;
+  border: 1px solid #454951;
+  border-radius: 8px;
+  background: #181a1f;
+}
+
+.director-view-switcher button {
+  min-height: 28px;
+  border: 0;
+  border-radius: 6px;
+  color: #b7bdc6;
+  background: transparent;
+  font: inherit;
+  font-size: 12px;
+  font-weight: 800;
+  cursor: pointer;
+}
+
+.director-view-switcher button:hover {
+  background: #25272d;
+}
+
+.director-view-switcher button.active {
+  color: #f2f0ea;
+  background: #353942;
+  box-shadow: 0 1px 2px rgba(0, 0, 0, 0.36);
 }
 
 .director-roster {
@@ -1184,11 +1353,20 @@ h1 {
   font-size: 11px;
 }
 
+.settings-info,
 .status-info {
   position: relative;
+}
+
+.settings-info {
   margin-left: auto;
 }
 
+.status-info {
+  margin-left: 0;
+}
+
+.settings-button,
 .status-info-button {
   width: 28px;
   height: 28px;
@@ -1199,14 +1377,55 @@ h1 {
   font: inherit;
   font-size: 13px;
   font-weight: 800;
+  line-height: 1;
   cursor: help;
 }
 
+.settings-button {
+  cursor: pointer;
+}
+
+.settings-button:hover,
+.settings-button:focus-visible,
 .status-info-button:hover,
 .status-info-button:focus-visible {
   color: #f2f0ea;
   border-color: #666c76;
   outline: none;
+}
+
+.settings-popover {
+  position: absolute;
+  right: 0;
+  bottom: calc(100% + 8px);
+  z-index: 35;
+  display: grid;
+  width: min(250px, calc(100vw - 22px));
+  gap: 12px;
+  padding: 12px;
+  border: 1px solid #454951;
+  border-radius: 8px;
+  color: #f2f0ea;
+  background: #202126;
+  box-shadow: 0 10px 28px rgba(0, 0, 0, 0.42);
+}
+
+.settings-popover-heading {
+  display: grid;
+  gap: 2px;
+}
+
+.settings-popover-heading strong {
+  font-size: 14px;
+}
+
+.settings-popover-heading span {
+  color: #a5abb4;
+  font-size: 12px;
+}
+
+.theme-control {
+  grid-template-columns: repeat(2, minmax(0, 1fr));
 }
 
 .status-info-ready {
@@ -1286,6 +1505,226 @@ h1 {
   justify-content: flex-end;
   gap: 8px;
   margin-top: 4px;
+}
+
+.extension-shell.theme-light .panel-log,
+.extension-shell.theme-light .panel-roller,
+.extension-shell.theme-light .panel-director {
+  color: #20242a;
+  scrollbar-color: #c2c9d3 #eef1f5;
+  background:
+    linear-gradient(180deg, rgba(255, 255, 255, 0.96), rgba(242, 245, 248, 0.98)),
+    #f6f8fb;
+}
+
+.extension-shell.theme-light .panel-log::-webkit-scrollbar-track,
+.extension-shell.theme-light .panel-roller::-webkit-scrollbar-track,
+.extension-shell.theme-light .panel-director::-webkit-scrollbar-track {
+  background: #eef1f5;
+}
+
+.extension-shell.theme-light .panel-log::-webkit-scrollbar-thumb,
+.extension-shell.theme-light .panel-roller::-webkit-scrollbar-thumb,
+.extension-shell.theme-light .panel-director::-webkit-scrollbar-thumb {
+  border-color: #eef1f5;
+  background: #c2c9d3;
+}
+
+.extension-shell.theme-light .panel-log::-webkit-scrollbar-thumb:hover,
+.extension-shell.theme-light .panel-roller::-webkit-scrollbar-thumb:hover,
+.extension-shell.theme-light .panel-director::-webkit-scrollbar-thumb:hover {
+  background: #aeb7c4;
+}
+
+.extension-shell.theme-light .bottom-bar {
+  border-top-color: #d8dde4;
+  background: rgba(255, 255, 255, 0.94);
+}
+
+.extension-shell.theme-light .manual-roll-panel,
+.extension-shell.theme-light .empty-state,
+.extension-shell.theme-light .roll-card,
+.extension-shell.theme-light .director-tool-panel,
+.extension-shell.theme-light .director-card,
+.extension-shell.theme-light .confirm-dialog,
+.extension-shell.theme-light .settings-popover,
+.extension-shell.theme-light .status-tooltip {
+  color: #20242a;
+  border-color: #d8dde4;
+  background: #ffffff;
+  box-shadow: 0 2px 10px rgba(31, 42, 56, 0.1);
+}
+
+.extension-shell.theme-light .roll-card-mine {
+  border-color: rgba(111, 139, 62, 0.56);
+  background:
+    linear-gradient(135deg, rgba(140, 168, 90, 0.16), rgba(255, 255, 255, 0.96)),
+    #ffffff;
+}
+
+.extension-shell.theme-light .roll-card-summary:hover,
+.extension-shell.theme-light .roll-card-summary:focus-visible {
+  background: rgba(31, 42, 56, 0.04);
+}
+
+.extension-shell.theme-light .roll-card-mine .roll-card-summary:hover,
+.extension-shell.theme-light .roll-card-mine .roll-card-summary:focus-visible {
+  background: rgba(140, 168, 90, 0.12);
+}
+
+.extension-shell.theme-light .manual-roll-heading h3,
+.extension-shell.theme-light .director-hero-title h3,
+.extension-shell.theme-light .damage-target-row strong,
+.extension-shell.theme-light .roll-score-box strong {
+  color: #20242a;
+}
+
+.extension-shell.theme-light .iframe-loading span,
+.extension-shell.theme-light .empty-state span,
+.extension-shell.theme-light .rolls-header p,
+.extension-shell.theme-light .roll-list p,
+.extension-shell.theme-light .roll-list time,
+.extension-shell.theme-light .manual-roll-heading p,
+.extension-shell.theme-light .director-header p,
+.extension-shell.theme-light .director-empty-note,
+.extension-shell.theme-light .roll-card-main span,
+.extension-shell.theme-light .roll-formula span,
+.extension-shell.theme-light .target-option small,
+.extension-shell.theme-light .target-empty,
+.extension-shell.theme-light .director-hero-title p,
+.extension-shell.theme-light .director-stat small,
+.extension-shell.theme-light .director-characteristics small,
+.extension-shell.theme-light .damage-target-row span,
+.extension-shell.theme-light .settings-popover-heading span {
+  color: #5d6673;
+}
+
+.extension-shell.theme-light .control-group,
+.extension-shell.theme-light .hidden-toggle,
+.extension-shell.theme-light .player-chip,
+.extension-shell.theme-light .tier-damage-stepper small,
+.extension-shell.theme-light .target-heading span {
+  color: #47515f;
+}
+
+.extension-shell.theme-light .segmented-control,
+.extension-shell.theme-light .modifier-stepper,
+.extension-shell.theme-light .hidden-toggle,
+.extension-shell.theme-light .select-control,
+.extension-shell.theme-light .roll-formula,
+.extension-shell.theme-light .roll-score-box,
+.extension-shell.theme-light .roll-breakdown,
+.extension-shell.theme-light .ability-details,
+.extension-shell.theme-light .target-option,
+.extension-shell.theme-light .target-empty,
+.extension-shell.theme-light .director-view-switcher,
+.extension-shell.theme-light .director-player-count,
+.extension-shell.theme-light .director-card-badges span,
+.extension-shell.theme-light .director-stat,
+.extension-shell.theme-light .director-characteristics span,
+.extension-shell.theme-light .director-tags span,
+.extension-shell.theme-light .damage-target-row,
+.extension-shell.theme-light .damage-target-math span,
+.extension-shell.theme-light .damage-adjustments span,
+.extension-shell.theme-light .tabs,
+.extension-shell.theme-light .settings-button,
+.extension-shell.theme-light .status-info-button,
+.extension-shell.theme-light .roll-notice-scores span,
+.extension-shell.theme-light .roll-notice button {
+  border-color: #d3d9e2;
+  color: #394454;
+  background: #f4f6f8;
+}
+
+.extension-shell.theme-light .segmented-control button,
+.extension-shell.theme-light .director-view-switcher button,
+.extension-shell.theme-light .tabs button {
+  color: #5d6673;
+}
+
+.extension-shell.theme-light .segmented-control button.active,
+.extension-shell.theme-light .director-view-switcher button.active,
+.extension-shell.theme-light .tabs button.active {
+  color: #20242a;
+  background: #ffffff;
+  box-shadow: 0 1px 3px rgba(31, 42, 56, 0.12);
+}
+
+.extension-shell.theme-light .modifier-stepper button,
+.extension-shell.theme-light .target-heading button,
+.extension-shell.theme-light .rolls-header button,
+.extension-shell.theme-light .subtle-command {
+  border-color: #d3d9e2;
+  color: #394454;
+  background: #ffffff;
+}
+
+.extension-shell.theme-light .modifier-stepper button:hover,
+.extension-shell.theme-light .target-heading button:hover,
+.extension-shell.theme-light .tabs button:hover,
+.extension-shell.theme-light .segmented-control button:hover,
+.extension-shell.theme-light .director-view-switcher button:hover {
+  background: #e9edf2;
+}
+
+.extension-shell.theme-light .modifier-stepper output,
+.extension-shell.theme-light .select-control,
+.extension-shell.theme-light .director-stat strong,
+.extension-shell.theme-light .director-characteristics strong {
+  color: #20242a;
+}
+
+.extension-shell.theme-light .roll-card-badges span,
+.extension-shell.theme-light .keyword-row span {
+  color: #394454;
+  border-color: #d3d9e2;
+  background: #f4f6f8;
+}
+
+.extension-shell.theme-light .roll-score-total,
+.extension-shell.theme-light .damage-target-math strong {
+  color: #ffffff;
+  border-color: #2f6f9c;
+  background: #215681;
+}
+
+.extension-shell.theme-light .roll-score-total span,
+.extension-shell.theme-light .roll-score-total strong,
+.extension-shell.theme-light .damage-target-math strong {
+  color: #ffffff;
+}
+
+.extension-shell.theme-light .ability-section-list div,
+.extension-shell.theme-light .tier-list div,
+.extension-shell.theme-light .director-tag-section {
+  border-top-color: #d8dde4;
+}
+
+.extension-shell.theme-light .ability-section-list span,
+.extension-shell.theme-light .tier-list span,
+.extension-shell.theme-light .roll-breakdown span {
+  color: #394454;
+}
+
+.extension-shell.theme-light .bottom-bar .tabs span {
+  color: #ffffff;
+  background: #215681;
+}
+
+.extension-shell.theme-light .roll-notice {
+  color: #20242a;
+  background:
+    linear-gradient(135deg, rgba(33, 86, 129, 0.12), rgba(255, 255, 255, 0.98)),
+    #ffffff;
+  box-shadow: 0 14px 34px rgba(31, 42, 56, 0.2);
+}
+
+.extension-shell.theme-light .roll-notice > div:first-child span {
+  color: #5d6673;
+}
+
+.extension-shell.theme-light .roll-notice-scores strong {
+  color: #20242a;
 }
 
 .resize-grip {
@@ -1377,6 +1816,10 @@ h1 {
   .director-hero-title {
     align-items: stretch;
     flex-direction: column;
+  }
+
+  .director-header-tools {
+    justify-items: stretch;
   }
 
   .director-card-badges {

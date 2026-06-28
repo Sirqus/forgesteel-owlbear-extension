@@ -48,6 +48,7 @@ const FORGESTEEL_BASE_URL =
 const FORGESTEEL_ORIGIN = new URL(FORGESTEEL_BASE_URL).origin
 const FORGESTEEL_URL = createForgeSteelUrl()
 const PANEL_SIZE_STORAGE_KEY = 'net.forgesteel.owlbear.panelSize.v1'
+const EXTENSION_THEME_STORAGE_KEY = 'net.forgesteel.owlbear.theme.v1'
 const DEFAULT_PANEL_SIZE: PanelSize = {
   label: 'Default',
   width: 450,
@@ -63,6 +64,8 @@ const MIN_DAMAGE_VALUE = 0
 const MAX_DAMAGE_VALUE = 999
 
 type ActiveTab = 'forgesteel' | 'log' | 'roller' | 'director'
+type DirectorView = 'overview' | 'attack'
+type ExtensionTheme = 'dark' | 'light'
 type ManualDice = 'd10' | '2d10'
 type ManualRollState =
   | 'doubleBane'
@@ -106,6 +109,15 @@ type PowerRollResult = {
   formula: string
   rollStateLabel: string
   breakdown: string
+}
+
+type RollNotice = {
+  id: string
+  actorName: string
+  playerName?: string
+  naturalTotal?: number
+  total: number
+  tier?: 1 | 2 | 3
 }
 
 const MANUAL_ROLL_STATES: Array<{
@@ -201,6 +213,10 @@ function DirectorTagSection({
 
 function App() {
   const [activeTab, setActiveTab] = useState<ActiveTab>('forgesteel')
+  const [directorView, setDirectorView] = useState<DirectorView>('overview')
+  const [extensionTheme, setExtensionTheme] =
+    useState<ExtensionTheme>(loadExtensionTheme)
+  const [settingsOpen, setSettingsOpen] = useState(false)
   const [logEntries, setLogEntries] = useState<TableLogEntry[]>(() =>
     loadStoredLogEntries(),
   )
@@ -245,10 +261,13 @@ function App() {
   const [expandedLogIds, setExpandedLogIds] = useState<Set<string>>(
     () => new Set(),
   )
+  const [rollNotices, setRollNotices] = useState<RollNotice[]>([])
   const iframeRef = useRef<HTMLIFrameElement>(null)
   const localPlayerRef = useRef<RollPlayer | undefined>(undefined)
   const activeTabRef = useRef<ActiveTab>('forgesteel')
   const flashTimeoutsRef = useRef<number[]>([])
+  const noticeTimeoutsRef = useRef<number[]>([])
+  const noticedLogIdsRef = useRef<Set<string>>(new Set())
   const logIdsRef = useRef<Set<string>>(
     new Set(logEntries.map((entry) => entry.id)),
   )
@@ -258,10 +277,22 @@ function App() {
     () => characterRoster.filter((entry) => entry.snapshot),
     [characterRoster],
   )
+  const visibleTabs: Array<{ id: ActiveTab; label: string }> = isDirector
+    ? [
+        { id: 'director', label: 'Director' },
+        { id: 'log', label: 'Log' },
+        { id: 'roller', label: 'Roller' },
+        { id: 'forgesteel', label: 'ForgeSteel' },
+      ]
+    : [
+        { id: 'forgesteel', label: 'ForgeSteel' },
+        { id: 'log', label: 'Log' },
+        { id: 'roller', label: 'Roller' },
+      ]
 
-  function recordLogEntry(entry: TableLogEntry) {
+  function recordLogEntry(entry: TableLogEntry): boolean {
     if (logIdsRef.current.has(entry.id)) {
-      return
+      return false
     }
 
     logIdsRef.current.add(entry.id)
@@ -273,6 +304,8 @@ function App() {
       saveStoredLogEntries(nextEntries)
       return nextEntries
     })
+
+    return true
   }
 
   function recordRoll(
@@ -285,6 +318,10 @@ function App() {
   ) {
     recordLogEntry(createRollLogEntry(message, options))
   }
+
+  useEffect(() => {
+    saveExtensionTheme(extensionTheme)
+  }, [extensionTheme])
 
   useEffect(() => {
     let active = true
@@ -382,7 +419,15 @@ function App() {
         return
       }
 
-      recordLogEntry(event.entry)
+      const added = recordLogEntry(event.entry)
+
+      if (
+        added &&
+        event.entry.kind === 'roll' &&
+        !isSameRollPlayer(event.entry.player, localPlayerRef.current)
+      ) {
+        queueRollNotice(event.entry)
+      }
 
       setBridgeStatus({
         state: 'received',
@@ -410,6 +455,7 @@ function App() {
       setCharacterRoster([])
       setManualHidden(false)
       setAttackHidden(false)
+      setDirectorView('overview')
       setSelectedAttackTargetIds(new Set())
 
       if (activeTabRef.current === 'director') {
@@ -458,9 +504,13 @@ function App() {
 
   useEffect(() => {
     const flashTimeouts = flashTimeoutsRef.current
+    const noticeTimeouts = noticeTimeoutsRef.current
 
     return () => {
       flashTimeouts.forEach((timeoutId) => {
+        window.clearTimeout(timeoutId)
+      })
+      noticeTimeouts.forEach((timeoutId) => {
         window.clearTimeout(timeoutId)
       })
     }
@@ -670,6 +720,37 @@ function App() {
     flashTimeoutsRef.current.push(timeoutId)
   }
 
+  function queueRollNotice(entry: StoredRollLogEntry) {
+    if (noticedLogIdsRef.current.has(entry.id)) {
+      return
+    }
+
+    noticedLogIdsRef.current.add(entry.id)
+
+    const notice: RollNotice = {
+      id: entry.id,
+      actorName: entry.actorName,
+      playerName: entry.player?.name,
+      naturalTotal: entry.naturalTotal,
+      total: entry.total,
+      tier: entry.tier,
+    }
+
+    setRollNotices((currentNotices) => [notice, ...currentNotices].slice(0, 3))
+
+    const timeoutId = window.setTimeout(() => {
+      dismissRollNotice(entry.id)
+    }, 4200)
+
+    noticeTimeoutsRef.current.push(timeoutId)
+  }
+
+  function dismissRollNotice(noticeId: string) {
+    setRollNotices((currentNotices) =>
+      currentNotices.filter((notice) => notice.id !== noticeId),
+    )
+  }
+
   function adjustManualModifier(delta: number) {
     setManualModifier((value) =>
       clamp(value + delta, MIN_MANUAL_MODIFIER, MAX_MANUAL_MODIFIER),
@@ -745,6 +826,10 @@ function App() {
     setClearConfirmOpen(false)
   }
 
+  function entryBelongsToCurrentPlayer(entry: TableLogEntry): boolean {
+    return isSameRollPlayer(entry.player, localPlayer)
+  }
+
   function renderDamageLogEntry(
     entry: StoredDamageLogEntry,
     expanded: boolean,
@@ -753,13 +838,16 @@ function App() {
       (sum, target) => sum + target.finalDamage,
       0,
     )
+    const isMine = entryBelongsToCurrentPlayer(entry)
 
     return (
       <li
         key={entry.id}
         className={`roll-card damage-card ${
           entry.visibility === 'hidden' ? 'roll-card-hidden' : ''
-        } ${flashingLogIds.has(entry.id) ? 'roll-card-fresh' : ''}`}
+        } ${isMine ? 'roll-card-mine' : ''} ${
+          flashingLogIds.has(entry.id) ? 'roll-card-fresh' : ''
+        }`}
       >
         <button
           type="button"
@@ -780,6 +868,7 @@ function App() {
               <span>{entry.player?.name || 'Director'}</span>
             </div>
             <div className="roll-card-badges">
+              {isMine && <span>You</span>}
               <span>Damage</span>
               <span>{entry.damageType}</span>
               {entry.visibility === 'hidden' && <span>Hidden</span>}
@@ -1185,8 +1274,48 @@ function App() {
   }
 
   return (
-    <main className={`extension-shell ${isResizing ? 'resizing' : ''}`}>
+    <main
+      className={`extension-shell theme-${extensionTheme} ${
+        isResizing ? 'resizing' : ''
+      }`}
+    >
       <h1 className="sr-only">ForgeSteel Owlbear Extension</h1>
+
+      {rollNotices.length > 0 && (
+        <div className="roll-notice-stack" aria-live="polite">
+          {rollNotices.map((notice) => (
+            <section key={notice.id} className="roll-notice">
+              <div>
+                <strong>{notice.actorName}</strong>
+                <span>
+                  {notice.playerName
+                    ? `${notice.playerName} rolled`
+                    : 'New table roll'}
+                </span>
+              </div>
+              <div className="roll-notice-scores">
+                <span>
+                  NAT <strong>{formatOptionalNumber(notice.naturalTotal)}</strong>
+                </span>
+                <span>
+                  TOTAL <strong>{notice.total}</strong>
+                </span>
+                <span>
+                  TIER{' '}
+                  <strong>{notice.tier === undefined ? '-' : notice.tier}</strong>
+                </span>
+              </div>
+              <button
+                type="button"
+                aria-label="Dismiss roll notice"
+                onClick={() => dismissRollNotice(notice.id)}
+              >
+                x
+              </button>
+            </section>
+          ))}
+        </div>
+      )}
 
       <section
         className={`panel panel-forgesteel ${
@@ -1252,13 +1381,16 @@ function App() {
               }
 
               const roll = entry
+              const isMine = entryBelongsToCurrentPlayer(roll)
 
               return (
                 <li
                   key={roll.id}
                   className={`roll-card ${
                     roll.visibility === 'hidden' ? 'roll-card-hidden' : ''
-                  } ${flashingLogIds.has(roll.id) ? 'roll-card-fresh' : ''}`}
+                  } ${isMine ? 'roll-card-mine' : ''} ${
+                    flashingLogIds.has(roll.id) ? 'roll-card-fresh' : ''
+                  }`}
                 >
                   <button
                     type="button"
@@ -1279,6 +1411,7 @@ function App() {
                         <span>{getPlayerName(roll)}</span>
                       </div>
                       <div className="roll-card-badges">
+                        {isMine && <span>You</span>}
                         <span>
                           {roll.source === 'manual' ? 'Manual' : 'ForgeSteel'}
                         </span>
@@ -1582,7 +1715,31 @@ function App() {
             <h2>Director</h2>
             <p>Live ForgeSteel hero snapshots from connected players.</p>
           </div>
-          <span>{characterRoster.length} players</span>
+          <div className="director-header-tools">
+            <span className="director-player-count">
+              {characterRoster.length} players
+            </span>
+            {isDirector && (
+              <div className="director-view-switcher" role="tablist">
+                <button
+                  type="button"
+                  className={directorView === 'overview' ? 'active' : ''}
+                  aria-pressed={directorView === 'overview'}
+                  onClick={() => setDirectorView('overview')}
+                >
+                  Overview
+                </button>
+                <button
+                  type="button"
+                  className={directorView === 'attack' ? 'active' : ''}
+                  aria-pressed={directorView === 'attack'}
+                  onClick={() => setDirectorView('attack')}
+                >
+                  Attack
+                </button>
+              </div>
+            )}
+          </div>
         </div>
 
         {!isDirector ? (
@@ -1592,8 +1749,9 @@ function App() {
           </div>
         ) : (
           <>
-            {renderDirectorAttackTool()}
-            {renderDirectorRoster()}
+            {directorView === 'attack'
+              ? renderDirectorAttackTool()
+              : renderDirectorRoster()}
           </>
         )}
       </section>
@@ -1603,41 +1761,58 @@ function App() {
           className="tabs"
           aria-label="Extension views"
           style={{
-            gridTemplateColumns: `repeat(${isDirector ? 4 : 3}, minmax(0, 1fr))`,
+            gridTemplateColumns: `repeat(${visibleTabs.length}, minmax(0, 1fr))`,
           }}
         >
-          <button
-            type="button"
-            className={activeTab === 'forgesteel' ? 'active' : ''}
-            onClick={() => selectTab('forgesteel')}
-          >
-            ForgeSteel
-          </button>
-          <button
-            type="button"
-            className={activeTab === 'log' ? 'active' : ''}
-            onClick={() => selectTab('log')}
-          >
-            Log
-            {unseenLogIds.size > 0 && <span>{unseenLogIds.size}</span>}
-          </button>
-          <button
-            type="button"
-            className={activeTab === 'roller' ? 'active' : ''}
-            onClick={() => selectTab('roller')}
-          >
-            Roller
-          </button>
-          {isDirector && (
+          {visibleTabs.map((tab) => (
             <button
+              key={tab.id}
               type="button"
-              className={activeTab === 'director' ? 'active' : ''}
-              onClick={() => selectTab('director')}
+              className={activeTab === tab.id ? 'active' : ''}
+              onClick={() => selectTab(tab.id)}
             >
-              Director
+              {tab.label}
+              {tab.id === 'log' && unseenLogIds.size > 0 && (
+                <span>{unseenLogIds.size}</span>
+              )}
             </button>
-          )}
+          ))}
         </nav>
+        <div className="settings-info">
+          <button
+            type="button"
+            className="settings-button"
+            aria-label="Extension settings"
+            aria-expanded={settingsOpen}
+            onClick={() => setSettingsOpen((isOpen) => !isOpen)}
+          >
+            ⚙
+          </button>
+          {settingsOpen && (
+            <section className="settings-popover" aria-label="Settings">
+              <div className="settings-popover-heading">
+                <strong>Settings</strong>
+                <span>Extension display</span>
+              </div>
+              <div className="control-group">
+                <span>Theme</span>
+                <div className="segmented-control theme-control">
+                  {(['dark', 'light'] as ExtensionTheme[]).map((theme) => (
+                    <button
+                      key={theme}
+                      type="button"
+                      className={extensionTheme === theme ? 'active' : ''}
+                      aria-pressed={extensionTheme === theme}
+                      onClick={() => setExtensionTheme(theme)}
+                    >
+                      {theme === 'dark' ? 'Dark' : 'Light'}
+                    </button>
+                  ))}
+                </div>
+              </div>
+            </section>
+          )}
+        </div>
         <div className="status-info">
           <button
             type="button"
@@ -2090,6 +2265,47 @@ function savePanelSize(size: PanelSize) {
   } catch (error) {
     console.warn('Unable to save ForgeSteel panel size preference.', error)
   }
+}
+
+function loadExtensionTheme(): ExtensionTheme {
+  try {
+    const storedValue = localStorage.getItem(EXTENSION_THEME_STORAGE_KEY)
+
+    if (storedValue === 'dark' || storedValue === 'light') {
+      return storedValue
+    }
+  } catch (error) {
+    console.warn('Unable to read ForgeSteel extension theme preference.', error)
+  }
+
+  return 'dark'
+}
+
+function saveExtensionTheme(theme: ExtensionTheme) {
+  try {
+    localStorage.setItem(EXTENSION_THEME_STORAGE_KEY, theme)
+  } catch (error) {
+    console.warn('Unable to save ForgeSteel extension theme preference.', error)
+  }
+}
+
+function isSameRollPlayer(
+  left: RollPlayer | undefined,
+  right: RollPlayer | undefined,
+): boolean {
+  if (!left || !right) {
+    return false
+  }
+
+  if (left.connectionId && right.connectionId) {
+    return left.connectionId === right.connectionId
+  }
+
+  if (left.id && right.id) {
+    return left.id === right.id
+  }
+
+  return left.name === right.name
 }
 
 function isLegacyPanelSizeId(value: string | null): boolean {
