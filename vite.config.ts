@@ -1,5 +1,6 @@
 import { defineConfig, type Plugin } from 'vite'
 import react from '@vitejs/plugin-react'
+import { fileURLToPath } from 'node:url'
 
 const BASE_PATH = normalizeBasePath(process.env.VITE_BASE_PATH ?? '/')
 const PUBLIC_BASE_URL = normalizePublicBaseUrl(process.env.VITE_PUBLIC_BASE_URL)
@@ -36,6 +37,14 @@ export default defineConfig({
       'Access-Control-Allow-Origin': '*',
       'Access-Control-Allow-Methods': 'GET,HEAD,OPTIONS',
       'Access-Control-Allow-Headers': '*',
+    },
+  },
+  build: {
+    rollupOptions: {
+      input: {
+        main: fileURLToPath(new URL('./index.html', import.meta.url)),
+        background: fileURLToPath(new URL('./background.html', import.meta.url)),
+      },
     },
   },
 })
@@ -75,6 +84,7 @@ function createOwlbearManifest() {
     author: 'ForgeSteel Owlbear Bridge contributors',
     homepage_url: 'https://github.com/Sirqus/forgesteel-owlbear-extension',
     icon: iconUrl,
+    background_url: manifestUrl('background.html'),
     action: {
       title: 'ForgeSteel',
       icon: iconUrl,

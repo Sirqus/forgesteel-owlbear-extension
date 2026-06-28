@@ -14,6 +14,13 @@ import {
   postDefaultOptionsToForgeSteel,
 } from './lib/bridge'
 import {
+  UNREAD_LOG_IDS_CHANGED_EVENT,
+  addUnreadLogId,
+  clearUnreadLogIds,
+  loadUnreadLogIds,
+  setLogViewActive,
+} from './lib/logAttention'
+import {
   appendLogEntry,
   clearStoredLogEntries,
   createRollLogEntry,
@@ -36,9 +43,11 @@ import {
   listenForSharedLogEvents,
   publishCharacterSnapshot,
   resizeActionPopover,
+  setActionBadgeCount,
   type CharacterRosterEntry,
   type OwlbearAdapterState,
 } from './lib/owlbear'
+import { isSameRollPlayer } from './lib/playerIdentity'
 
 const DEFAULT_FORGESTEEL_URL = import.meta.env.DEV
   ? 'http://localhost:5174'
@@ -253,7 +262,7 @@ function App() {
   >(() => new Set())
   const [clearConfirmOpen, setClearConfirmOpen] = useState(false)
   const [unseenLogIds, setUnseenLogIds] = useState<Set<string>>(
-    () => new Set(),
+    loadUnreadLogIds,
   )
   const [flashingLogIds, setFlashingLogIds] = useState<Set<string>>(
     () => new Set(),
@@ -449,6 +458,37 @@ function App() {
       unsubscribe()
     }
   }, [])
+
+  useEffect(() => {
+    const syncUnreadLogIds = () => {
+      setUnseenLogIds(loadUnreadLogIds())
+    }
+
+    window.addEventListener('storage', syncUnreadLogIds)
+    window.addEventListener(UNREAD_LOG_IDS_CHANGED_EVENT, syncUnreadLogIds)
+
+    return () => {
+      window.removeEventListener('storage', syncUnreadLogIds)
+      window.removeEventListener(UNREAD_LOG_IDS_CHANGED_EVENT, syncUnreadLogIds)
+    }
+  }, [])
+
+  useEffect(() => {
+    if (activeTab !== 'log') {
+      setLogViewActive(false)
+      return
+    }
+
+    setLogViewActive(true)
+    const heartbeatId = window.setInterval(() => {
+      setLogViewActive(true)
+    }, 5000)
+
+    return () => {
+      window.clearInterval(heartbeatId)
+      setLogViewActive(false)
+    }
+  }, [activeTab])
 
   useEffect(() => {
     if (!isDirector) {
@@ -682,6 +722,8 @@ function App() {
 
         return new Set()
       })
+      clearUnreadLogIds()
+      void setActionBadgeCount(0)
     }
   }
 
@@ -691,11 +733,9 @@ function App() {
       return
     }
 
-    setUnseenLogIds((currentIds) => {
-      const nextIds = new Set(currentIds)
-      nextIds.add(logId)
-      return nextIds
-    })
+    const nextIds = addUnreadLogId(logId)
+    setUnseenLogIds(nextIds)
+    void setActionBadgeCount(nextIds.size)
   }
 
   function queueLogFlash(logIds: string[]) {
@@ -819,11 +859,13 @@ function App() {
   function clearTableLog() {
     setLogEntries([])
     clearStoredLogEntries()
+    clearUnreadLogIds()
     logIdsRef.current = new Set()
     setUnseenLogIds(new Set())
     setFlashingLogIds(new Set())
     setExpandedLogIds(new Set())
     setClearConfirmOpen(false)
+    void setActionBadgeCount(0)
   }
 
   function entryBelongsToCurrentPlayer(entry: TableLogEntry): boolean {
@@ -1786,7 +1828,7 @@ function App() {
             aria-expanded={settingsOpen}
             onClick={() => setSettingsOpen((isOpen) => !isOpen)}
           >
-            ⚙
+            S
           </button>
           {settingsOpen && (
             <section className="settings-popover" aria-label="Settings">
@@ -2287,25 +2329,6 @@ function saveExtensionTheme(theme: ExtensionTheme) {
   } catch (error) {
     console.warn('Unable to save ForgeSteel extension theme preference.', error)
   }
-}
-
-function isSameRollPlayer(
-  left: RollPlayer | undefined,
-  right: RollPlayer | undefined,
-): boolean {
-  if (!left || !right) {
-    return false
-  }
-
-  if (left.connectionId && right.connectionId) {
-    return left.connectionId === right.connectionId
-  }
-
-  if (left.id && right.id) {
-    return left.id === right.id
-  }
-
-  return left.name === right.name
 }
 
 function isLegacyPanelSizeId(value: string | null): boolean {

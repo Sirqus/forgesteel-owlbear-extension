@@ -10,6 +10,7 @@ import {
   type RollPlayer,
   type RollVisibility,
   type StoredDamageLogEntry,
+  type StoredRollLogEntry,
   type TableLogEntry,
 } from './logStorage'
 
@@ -102,11 +103,13 @@ export async function initializeOwlbear(): Promise<OwlbearAdapterState> {
 }
 
 export async function getCurrentPlayerInfo(): Promise<RollPlayer | undefined> {
-  if (!OBR.isAvailable || !OBR.isReady) {
+  if (!OBR.isAvailable) {
     return undefined
   }
 
   try {
+    await waitForOwlbearReady()
+
     const [id, connectionId, name, color, role] = await Promise.all([
       OBR.player.getId(),
       OBR.player.getConnectionId(),
@@ -125,6 +128,53 @@ export async function getCurrentPlayerInfo(): Promise<RollPlayer | undefined> {
   } catch (error) {
     console.warn('Unable to read Owlbear player info.', error)
     return undefined
+  }
+}
+
+export async function setActionBadgeCount(count: number): Promise<void> {
+  if (!OBR.isAvailable) {
+    return
+  }
+
+  try {
+    await waitForOwlbearReady()
+
+    if (count <= 0) {
+      await OBR.action.setBadgeText(undefined)
+      return
+    }
+
+    await Promise.all([
+      OBR.action.setBadgeBackgroundColor('#b64a39'),
+      OBR.action.setBadgeText(count > 99 ? '99+' : count.toString()),
+    ])
+  } catch (error) {
+    console.warn('Unable to update ForgeSteel action badge.', error)
+  }
+}
+
+export async function showSharedRollNotification(
+  entry: StoredRollLogEntry,
+): Promise<void> {
+  if (!OBR.isAvailable) {
+    return
+  }
+
+  try {
+    await waitForOwlbearReady()
+
+    const notificationId = await OBR.notification.show(
+      formatSharedRollNotification(entry),
+      'INFO',
+    )
+
+    window.setTimeout(() => {
+      void OBR.notification.close(notificationId).catch((error) => {
+        console.warn('Unable to close ForgeSteel roll notification.', error)
+      })
+    }, 4200)
+  } catch (error) {
+    console.warn('Unable to show ForgeSteel roll notification.', error)
   }
 }
 
@@ -450,6 +500,15 @@ function fallbackPlayerFromConnection(connectionId: string): RollPlayer {
     connectionId,
     name: 'Player',
   }
+}
+
+function formatSharedRollNotification(entry: StoredRollLogEntry): string {
+  const playerName = entry.player?.name || 'A player'
+  const naturalTotal =
+    entry.naturalTotal === undefined ? '-' : entry.naturalTotal.toString()
+  const tier = entry.tier === undefined ? '-' : entry.tier.toString()
+
+  return `${playerName} rolled for ${entry.actorName}: NAT ${naturalTotal}, TOTAL ${entry.total}, TIER ${tier}`
 }
 
 function createCharacterRoster(players: Player[]): CharacterRosterEntry[] {
