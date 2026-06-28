@@ -1,4 +1,4 @@
-# ForgeSteel Owlbear Bridge
+# ForgeSteel Owlbear Extension
 
 Standalone Owlbear Rodeo extension MVP for embedding ForgeSteel and receiving future ForgeSteel bridge events.
 
@@ -22,7 +22,7 @@ Install that manifest URL through Owlbear Rodeo's extension/install flow while t
 For local ForgeSteel bridge testing, run both apps:
 
 ```powershell
-cd C:\RPG\forgesteel-source
+cd C:\RPG\forgesteel-owlbear-bridge
 npm.cmd run start -- --host 127.0.0.1 --port 5174 --strictPort
 ```
 
@@ -31,9 +31,9 @@ cd C:\RPG\forgesteel-owlbear-extension
 npm.cmd run dev -- --host 127.0.0.1 --port 5173 --strictPort
 ```
 
-Vite dev mode points the iframe at `http://localhost:5174` by default. Production builds still point at `https://forgesteel.net`, unless `VITE_FORGESTEEL_URL` is set.
+Vite dev mode points the iframe at `http://localhost:5174` by default. Production builds point at `https://sirqus.github.io/forgesteel-owlbear-bridge/`, unless `VITE_FORGESTEEL_URL` is set.
 
-The local ForgeSteel bridge work currently lives in `C:\RPG\forgesteel-source` on the `owlbear-roll-bridge` branch. When that app is running on port `5174`, the extension passes `owlbearBridge=1` and `owlbearOrigin=http://localhost:5173` to the iframe so ForgeSteel can post roll messages back to the extension.
+When the bridge app is running on port `5174`, the extension passes `owlbearBridge=1` and `owlbearOrigin=http://localhost:5173` to the iframe so ForgeSteel can post roll messages back to the extension.
 
 ## Development
 
@@ -42,7 +42,19 @@ npm.cmd run build
 npm.cmd run lint
 ```
 
-In development builds, the Rolls tab includes an `Add Test Roll` button. It posts a local `FORGESTEEL_ROLL_RESULT` message so the extension can be tested before ForgeSteel emits bridge messages itself.
+The static files are generated in `dist` when `npm.cmd run build` completes.
+
+## GitHub Pages
+
+This repo deploys with GitHub Actions. In GitHub, open **Settings -> Pages** and set **Build and deployment / Source** to **GitHub Actions**. Then push to `master` or run the `Deploy GitHub Pages` workflow manually.
+
+The public Owlbear manifest URL is:
+
+```text
+https://sirqus.github.io/forgesteel-owlbear-extension/manifest.json
+```
+
+Install that URL in Owlbear Rodeo as the custom extension manifest. Do not publish the repo root as the Pages source; Vite apps must publish the generated `dist` artifact.
 
 ## ForgeSteel Bridge Contract
 

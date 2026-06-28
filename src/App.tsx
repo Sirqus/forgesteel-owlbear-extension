@@ -31,7 +31,7 @@ import {
 
 const DEFAULT_FORGESTEEL_URL = import.meta.env.DEV
   ? 'http://localhost:5174'
-  : 'https://forgesteel.net'
+  : 'https://sirqus.github.io/forgesteel-owlbear-bridge/'
 const FORGESTEEL_BASE_URL =
   import.meta.env.VITE_FORGESTEEL_URL || DEFAULT_FORGESTEEL_URL
 const FORGESTEEL_ORIGIN = new URL(FORGESTEEL_BASE_URL).origin
