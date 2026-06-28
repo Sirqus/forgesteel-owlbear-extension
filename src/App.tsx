@@ -1,6 +1,7 @@
 import {
   type PointerEvent as ReactPointerEvent,
   useEffect,
+  useMemo,
   useRef,
   useState,
 } from 'react'
@@ -13,20 +14,26 @@ import {
   postDefaultOptionsToForgeSteel,
 } from './lib/bridge'
 import {
-  appendRoll,
-  loadStoredRolls,
-  saveStoredRolls,
+  appendLogEntry,
+  clearStoredLogEntries,
+  createRollLogEntry,
+  loadStoredLogEntries,
+  saveStoredLogEntries,
+  type DamageLogTarget,
   type RollPlayer,
   type RollSource,
   type RollVisibility,
-  type StoredRoll,
-} from './lib/rollStorage'
+  type StoredDamageLogEntry,
+  type StoredRollLogEntry,
+  type TableLogEntry,
+} from './lib/logStorage'
 import {
+  broadcastDamageLog,
   broadcastRoll,
   getCurrentPlayerInfo,
   initializeOwlbear,
   listenForCharacterRoster,
-  listenForSharedRolls,
+  listenForSharedLogEvents,
   publishCharacterSnapshot,
   resizeActionPopover,
   type CharacterRosterEntry,
@@ -52,8 +59,10 @@ const MIN_PANEL_HEIGHT = 360
 const MAX_PANEL_HEIGHT = 1180
 const MIN_MANUAL_MODIFIER = -99
 const MAX_MANUAL_MODIFIER = 99
+const MIN_DAMAGE_VALUE = 0
+const MAX_DAMAGE_VALUE = 999
 
-type ActiveTab = 'forgesteel' | 'rolls' | 'director'
+type ActiveTab = 'forgesteel' | 'log' | 'roller' | 'director'
 type ManualDice = 'd10' | '2d10'
 type ManualRollState =
   | 'doubleBane'
@@ -73,6 +82,32 @@ type BridgeStatus = {
   message: string
 }
 
+type DamageType =
+  | 'Damage'
+  | 'Acid'
+  | 'Cold'
+  | 'Corruption'
+  | 'Fire'
+  | 'Holy'
+  | 'Lightning'
+  | 'Poison'
+  | 'Psychic'
+  | 'Sonic'
+
+type DamageByTier = Record<1 | 2 | 3, number>
+
+type PowerRollResult = {
+  rolls: number[]
+  naturalTotal: number
+  total: number
+  baseTier: 1 | 2 | 3
+  tier: 1 | 2 | 3
+  stateBonus: number
+  formula: string
+  rollStateLabel: string
+  breakdown: string
+}
+
 const MANUAL_ROLL_STATES: Array<{
   value: ManualRollState
   label: string
@@ -82,6 +117,19 @@ const MANUAL_ROLL_STATES: Array<{
   { value: 'standard', label: 'Standard' },
   { value: 'edge', label: 'Edge' },
   { value: 'doubleEdge', label: 'Double Edge' },
+]
+
+const DAMAGE_TYPES: DamageType[] = [
+  'Damage',
+  'Acid',
+  'Cold',
+  'Corruption',
+  'Fire',
+  'Holy',
+  'Lightning',
+  'Poison',
+  'Psychic',
+  'Sonic',
 ]
 
 function RollScoreBox({
@@ -153,7 +201,9 @@ function DirectorTagSection({
 
 function App() {
   const [activeTab, setActiveTab] = useState<ActiveTab>('forgesteel')
-  const [rolls, setRolls] = useState<StoredRoll[]>(() => loadStoredRolls())
+  const [logEntries, setLogEntries] = useState<TableLogEntry[]>(() =>
+    loadStoredLogEntries(),
+  )
   const [bridgeStatus, setBridgeStatus] = useState<BridgeStatus>({
     state: 'waiting',
     message: 'Waiting for ForgeSteel bridge events.',
@@ -174,24 +224,56 @@ function App() {
   const [manualRollState, setManualRollState] =
     useState<ManualRollState>('standard')
   const [manualHidden, setManualHidden] = useState(false)
-  const [manualPanelOpen, setManualPanelOpen] = useState(false)
+  const [attackModifier, setAttackModifier] = useState(0)
+  const [attackRollState, setAttackRollState] =
+    useState<ManualRollState>('standard')
+  const [attackDamageType, setAttackDamageType] =
+    useState<DamageType>('Damage')
+  const [attackDamageByTier, setAttackDamageByTier] =
+    useState<DamageByTier>({ 1: 3, 2: 6, 3: 9 })
+  const [attackHidden, setAttackHidden] = useState(false)
+  const [selectedAttackTargetIds, setSelectedAttackTargetIds] = useState<
+    Set<string>
+  >(() => new Set())
   const [clearConfirmOpen, setClearConfirmOpen] = useState(false)
-  const [unseenRollIds, setUnseenRollIds] = useState<Set<string>>(
+  const [unseenLogIds, setUnseenLogIds] = useState<Set<string>>(
     () => new Set(),
   )
-  const [flashingRollIds, setFlashingRollIds] = useState<Set<string>>(
+  const [flashingLogIds, setFlashingLogIds] = useState<Set<string>>(
     () => new Set(),
   )
-  const [expandedRollIds, setExpandedRollIds] = useState<Set<string>>(
+  const [expandedLogIds, setExpandedLogIds] = useState<Set<string>>(
     () => new Set(),
   )
   const iframeRef = useRef<HTMLIFrameElement>(null)
   const localPlayerRef = useRef<RollPlayer | undefined>(undefined)
   const activeTabRef = useRef<ActiveTab>('forgesteel')
   const flashTimeoutsRef = useRef<number[]>([])
-  const rollIdsRef = useRef<Set<string>>(new Set(rolls.map((roll) => roll.id)))
+  const logIdsRef = useRef<Set<string>>(
+    new Set(logEntries.map((entry) => entry.id)),
+  )
   const lastCharacterSnapshotRef = useRef<string>('')
   const isDirector = localPlayer?.role === 'GM'
+  const attackTargets = useMemo(
+    () => characterRoster.filter((entry) => entry.snapshot),
+    [characterRoster],
+  )
+
+  function recordLogEntry(entry: TableLogEntry) {
+    if (logIdsRef.current.has(entry.id)) {
+      return
+    }
+
+    logIdsRef.current.add(entry.id)
+    markLogFresh(entry.id)
+
+    setLogEntries((currentEntries) => {
+      const nextEntries = appendLogEntry(currentEntries, entry)
+      logIdsRef.current = new Set(nextEntries.map((item) => item.id))
+      saveStoredLogEntries(nextEntries)
+      return nextEntries
+    })
+  }
 
   function recordRoll(
     message: ForgeSteelRollResultMessage,
@@ -201,19 +283,7 @@ function App() {
       player?: RollPlayer | undefined
     } = {},
   ) {
-    if (rollIdsRef.current.has(message.messageId)) {
-      return
-    }
-
-    rollIdsRef.current.add(message.messageId)
-    markRollFresh(message.messageId)
-
-    setRolls((currentRolls) => {
-      const nextRolls = appendRoll(currentRolls, message, options)
-      rollIdsRef.current = new Set(nextRolls.map((roll) => roll.id))
-      saveStoredRolls(nextRolls)
-      return nextRolls
-    })
+    recordLogEntry(createRollLogEntry(message, options))
   }
 
   useEffect(() => {
@@ -307,25 +377,23 @@ function App() {
     let active = true
     let unsubscribe: () => void = () => undefined
 
-    void listenForSharedRolls((event) => {
+    void listenForSharedLogEvents((event) => {
       if (!active) {
         return
       }
 
-      recordRoll(event.message, {
-        source:
-          event.message.payload.context?.kind === 'manual'
-            ? 'manual'
-            : 'forgesteel',
-        visibility: event.visibility,
-        player: event.player,
-      })
+      recordLogEntry(event.entry)
 
       setBridgeStatus({
         state: 'received',
-        message: `Shared roll received from ${
-          event.player?.name || event.message.payload.actorName
-        }.`,
+        message:
+          event.entry.kind === 'damage'
+            ? `Shared damage event received from ${
+                event.entry.player?.name || 'Director'
+              }.`
+            : `Shared roll received from ${
+                event.entry.player?.name || event.entry.actorName
+              }.`,
       })
     }).then((listener) => {
       unsubscribe = listener
@@ -340,6 +408,9 @@ function App() {
   useEffect(() => {
     if (!isDirector) {
       setCharacterRoster([])
+      setManualHidden(false)
+      setAttackHidden(false)
+      setSelectedAttackTargetIds(new Set())
 
       if (activeTabRef.current === 'director') {
         activeTabRef.current = 'forgesteel'
@@ -365,6 +436,25 @@ function App() {
       unsubscribe()
     }
   }, [isDirector])
+
+  useEffect(() => {
+    setSelectedAttackTargetIds((currentIds) => {
+      const availableIds = new Set(
+        attackTargets
+          .map((entry) => entry.snapshot?.characterId)
+          .filter((id): id is string => Boolean(id)),
+      )
+      const nextIds = new Set(
+        [...currentIds].filter((id) => availableIds.has(id)),
+      )
+
+      if (nextIds.size === currentIds.size) {
+        return currentIds
+      }
+
+      return nextIds
+    })
+  }, [attackTargets])
 
   useEffect(() => {
     const flashTimeouts = flashTimeoutsRef.current
@@ -439,7 +529,8 @@ function App() {
   }
 
   function handleManualRoll() {
-    const visibility: RollVisibility = manualHidden ? 'hidden' : 'public'
+    const visibility: RollVisibility =
+      isDirector && manualHidden ? 'hidden' : 'public'
     const message = createManualRollMessage({
       dice: manualDice,
       modifier: manualModifier,
@@ -458,15 +549,85 @@ function App() {
     void broadcastRoll(message, visibility)
   }
 
+  function handleDirectorAttack() {
+    const selectedTargets = attackTargets.filter(
+      (entry) =>
+        entry.snapshot &&
+        selectedAttackTargetIds.has(entry.snapshot.characterId),
+    )
+
+    if (selectedTargets.length === 0) {
+      return
+    }
+
+    const roll = rollPowerRoll({
+      modifier: attackModifier,
+      rollState: attackRollState,
+    })
+    const baseDamage = attackDamageByTier[roll.tier]
+    const targets = selectedTargets
+      .map((entry): DamageLogTarget | null => {
+        if (!entry.snapshot) {
+          return null
+        }
+
+        const result = calculateTargetDamage(
+          entry.snapshot,
+          attackDamageType,
+          baseDamage,
+        )
+
+        return {
+          characterId: entry.snapshot.characterId,
+          characterName: entry.snapshot.characterName,
+          playerName: entry.player.name,
+          playerColor: entry.player.color,
+          baseDamage,
+          adjustment: result.adjustment,
+          finalDamage: result.finalDamage,
+          immunities: result.immunities,
+          weaknesses: result.weaknesses,
+        }
+      })
+      .filter((target): target is DamageLogTarget => Boolean(target))
+
+    if (targets.length === 0) {
+      return
+    }
+
+    const entry: StoredDamageLogEntry = {
+      kind: 'damage',
+      id: crypto.randomUUID(),
+      timestamp: new Date().toISOString(),
+      source: 'director',
+      visibility: attackHidden ? 'hidden' : 'public',
+      player: localPlayerRef.current,
+      title: 'Director Attack',
+      damageType: attackDamageType,
+      baseDamage,
+      formula: roll.formula,
+      total: roll.total,
+      naturalTotal: roll.naturalTotal,
+      tier: roll.tier,
+      baseTier: roll.baseTier,
+      rollState: roll.rollStateLabel,
+      breakdown: roll.breakdown,
+      targets,
+    }
+
+    recordLogEntry(entry)
+    void broadcastDamageLog(entry)
+  }
+
   function selectTab(nextTab: ActiveTab) {
     activeTabRef.current = nextTab
     setActiveTab(nextTab)
 
-    if (nextTab === 'rolls') {
-      setUnseenRollIds((currentIds) => {
+    if (nextTab === 'log') {
+      setUnseenLogIds((currentIds) => {
         const ids = [...currentIds]
         if (ids.length > 0) {
-          queueRollFlash(ids)
+          queueLogFlash(ids)
         }
 
         return new Set()
@@ -474,34 +635,34 @@ function App() {
     }
   }
 
-  function markRollFresh(rollId: string) {
-    if (activeTabRef.current === 'rolls') {
-      queueRollFlash([rollId])
+  function markLogFresh(logId: string) {
+    if (activeTabRef.current === 'log') {
+      queueLogFlash([logId])
       return
     }
 
-    setUnseenRollIds((currentIds) => {
+    setUnseenLogIds((currentIds) => {
       const nextIds = new Set(currentIds)
-      nextIds.add(rollId)
+      nextIds.add(logId)
       return nextIds
     })
   }
 
-  function queueRollFlash(rollIds: string[]) {
-    if (rollIds.length === 0) {
+  function queueLogFlash(logIds: string[]) {
+    if (logIds.length === 0) {
       return
     }
 
-    setFlashingRollIds((currentIds) => {
+    setFlashingLogIds((currentIds) => {
       const nextIds = new Set(currentIds)
-      rollIds.forEach((rollId) => nextIds.add(rollId))
+      logIds.forEach((logId) => nextIds.add(logId))
       return nextIds
     })
 
     const timeoutId = window.setTimeout(() => {
-      setFlashingRollIds((currentIds) => {
+      setFlashingLogIds((currentIds) => {
         const nextIds = new Set(currentIds)
-        rollIds.forEach((rollId) => nextIds.delete(rollId))
+        logIds.forEach((logId) => nextIds.delete(logId))
         return nextIds
       })
     }, 2600)
@@ -515,28 +676,512 @@ function App() {
     )
   }
 
-  function toggleRollExpanded(rollId: string) {
-    setExpandedRollIds((currentIds) => {
+  function adjustAttackModifier(delta: number) {
+    setAttackModifier((value) =>
+      clamp(value + delta, MIN_MANUAL_MODIFIER, MAX_MANUAL_MODIFIER),
+    )
+  }
+
+  function adjustAttackDamage(tier: 1 | 2 | 3, delta: number) {
+    setAttackDamageByTier((currentDamage) => ({
+      ...currentDamage,
+      [tier]: clamp(
+        currentDamage[tier] + delta,
+        MIN_DAMAGE_VALUE,
+        MAX_DAMAGE_VALUE,
+      ),
+    }))
+  }
+
+  function toggleAttackTarget(characterId: string) {
+    setSelectedAttackTargetIds((currentIds) => {
       const nextIds = new Set(currentIds)
 
-      if (nextIds.has(rollId)) {
-        nextIds.delete(rollId)
+      if (nextIds.has(characterId)) {
+        nextIds.delete(characterId)
       } else {
-        nextIds.add(rollId)
+        nextIds.add(characterId)
       }
 
       return nextIds
     })
   }
 
-  function clearRollFeed() {
-    setRolls([])
-    saveStoredRolls([])
-    rollIdsRef.current = new Set()
-    setUnseenRollIds(new Set())
-    setFlashingRollIds(new Set())
-    setExpandedRollIds(new Set())
+  function selectAllAttackTargets() {
+    setSelectedAttackTargetIds(
+      new Set(
+        attackTargets
+          .map((entry) => entry.snapshot?.characterId)
+          .filter((id): id is string => Boolean(id)),
+      ),
+    )
+  }
+
+  function clearAttackTargets() {
+    setSelectedAttackTargetIds(new Set())
+  }
+
+  function toggleLogExpanded(logId: string) {
+    setExpandedLogIds((currentIds) => {
+      const nextIds = new Set(currentIds)
+
+      if (nextIds.has(logId)) {
+        nextIds.delete(logId)
+      } else {
+        nextIds.add(logId)
+      }
+
+      return nextIds
+    })
+  }
+
+  function clearTableLog() {
+    setLogEntries([])
+    clearStoredLogEntries()
+    logIdsRef.current = new Set()
+    setUnseenLogIds(new Set())
+    setFlashingLogIds(new Set())
+    setExpandedLogIds(new Set())
     setClearConfirmOpen(false)
+  }
+
+  function renderDamageLogEntry(
+    entry: StoredDamageLogEntry,
+    expanded: boolean,
+  ) {
+    const totalDamage = entry.targets.reduce(
+      (sum, target) => sum + target.finalDamage,
+      0,
+    )
+
+    return (
+      <li
+        key={entry.id}
+        className={`roll-card damage-card ${
+          entry.visibility === 'hidden' ? 'roll-card-hidden' : ''
+        } ${flashingLogIds.has(entry.id) ? 'roll-card-fresh' : ''}`}
+      >
+        <button
+          type="button"
+          className="roll-card-summary"
+          aria-expanded={expanded}
+          onClick={() => toggleLogExpanded(entry.id)}
+        >
+          <div className="roll-card-header">
+            <div className="player-chip">
+              <span
+                className="player-avatar"
+                style={{
+                  backgroundColor: entry.player?.color || '#7a3f32',
+                }}
+              >
+                {getInitial(entry.player?.name || 'Director')}
+              </span>
+              <span>{entry.player?.name || 'Director'}</span>
+            </div>
+            <div className="roll-card-badges">
+              <span>Damage</span>
+              <span>{entry.damageType}</span>
+              {entry.visibility === 'hidden' && <span>Hidden</span>}
+            </div>
+            <time dateTime={entry.timestamp}>
+              {formatRollTime(entry.timestamp)}
+            </time>
+            <span
+              className={`expand-indicator ${expanded ? 'expanded' : ''}`}
+              aria-hidden="true"
+            >
+              ^
+            </span>
+          </div>
+
+          <div className="roll-card-main">
+            <div className="roll-card-title">
+              <strong>{entry.title}</strong>
+              <span>{entry.targets.length} targets</span>
+            </div>
+            <div className="roll-score-grid">
+              <RollScoreBox label="BASE" value={entry.baseDamage} />
+              <RollScoreBox label="TOTAL" value={totalDamage} tone="total" />
+              <RollScoreBox
+                label="TIER"
+                value={entry.tier}
+                tone="tier"
+                note={getTierAdjustmentLabel(entry)}
+              />
+            </div>
+          </div>
+
+          <div className="roll-formula">
+            <span>{entry.formula}</span>
+            <em>{entry.rollState}</em>
+          </div>
+        </button>
+
+        {expanded && (
+          <div className="roll-card-details">
+            <div className="roll-breakdown">
+              <strong>Attack</strong>
+              <span>{entry.breakdown}</span>
+            </div>
+            {isTierShifted(entry) && (
+              <div className="tier-shift-note">
+                {entry.rollState} moved this from tier {entry.baseTier} to tier{' '}
+                {entry.tier}.
+              </div>
+            )}
+            <div className="damage-target-list">
+              {entry.targets.map((target) => (
+                <div key={target.characterId} className="damage-target-row">
+                  <div>
+                    <strong>{target.characterName}</strong>
+                    {target.playerName && <span>{target.playerName}</span>}
+                  </div>
+                  <div className="damage-target-math">
+                    <span>{target.baseDamage}</span>
+                    <span>{formatModifierValue(target.adjustment)}</span>
+                    <strong>{target.finalDamage}</strong>
+                  </div>
+                  <div className="damage-adjustments">
+                    {target.immunities.map((modifier) => (
+                      <span key={`immunity-${modifier.damageType}`}>
+                        {modifier.damageType} immunity{' '}
+                        {formatModifierValue(modifier.value)}
+                      </span>
+                    ))}
+                    {target.weaknesses.map((modifier) => (
+                      <span key={`weakness-${modifier.damageType}`}>
+                        {modifier.damageType} weakness{' '}
+                        {formatModifierValue(modifier.value)}
+                      </span>
+                    ))}
+                  </div>
+                </div>
+              ))}
+            </div>
+          </div>
+        )}
+      </li>
+    )
+  }
+
+  function renderDirectorAttackTool() {
+    return (
+      <section className="director-tool-panel" aria-label="Attack heroes">
+        <div className="manual-roll-heading">
+          <div>
+            <h3>Attack Heroes</h3>
+            <p>
+              Power roll once, then apply tier damage to selected hero
+              snapshots.
+            </p>
+          </div>
+          <div className="manual-roll-actions">
+            <label className="hidden-toggle hidden-toggle-heading">
+              <input
+                type="checkbox"
+                checked={attackHidden}
+                onChange={(event) => setAttackHidden(event.target.checked)}
+              />
+              Hidden
+            </label>
+            <button
+              type="button"
+              className="roll-command"
+              disabled={selectedAttackTargetIds.size === 0}
+              onClick={handleDirectorAttack}
+            >
+              Attack
+            </button>
+          </div>
+        </div>
+
+        <div className="attack-controls">
+          <div className="control-group">
+            <span>Damage Type</span>
+            <select
+              className="select-control"
+              value={attackDamageType}
+              onChange={(event) =>
+                setAttackDamageType(event.target.value as DamageType)
+              }
+            >
+              {DAMAGE_TYPES.map((damageType) => (
+                <option key={damageType} value={damageType}>
+                  {damageType}
+                </option>
+              ))}
+            </select>
+          </div>
+
+          <div className="control-group">
+            <span>Modifier</span>
+            <div className="modifier-stepper">
+              <button
+                type="button"
+                aria-label="Decrease attack modifier"
+                onClick={() => adjustAttackModifier(-1)}
+              >
+                -
+              </button>
+              <output aria-live="polite">
+                {formatModifierValue(attackModifier)}
+              </output>
+              <button
+                type="button"
+                aria-label="Increase attack modifier"
+                onClick={() => adjustAttackModifier(1)}
+              >
+                +
+              </button>
+            </div>
+          </div>
+
+          <div className="control-group control-group-wide">
+            <span>Roll State</span>
+            <div className="segmented-control roll-state-control">
+              {MANUAL_ROLL_STATES.map((state) => (
+                <button
+                  key={state.value}
+                  type="button"
+                  className={attackRollState === state.value ? 'active' : ''}
+                  aria-pressed={attackRollState === state.value}
+                  onClick={() => setAttackRollState(state.value)}
+                >
+                  {state.label}
+                </button>
+              ))}
+            </div>
+          </div>
+
+          <div className="control-group control-group-wide">
+            <span>Tier Damage</span>
+            <div className="tier-damage-grid">
+              {([1, 2, 3] as const).map((tier) => (
+                <div key={tier} className="tier-damage-stepper">
+                  <small>T{tier}</small>
+                  <div className="modifier-stepper">
+                    <button
+                      type="button"
+                      aria-label={`Decrease tier ${tier} damage`}
+                      onClick={() => adjustAttackDamage(tier, -1)}
+                    >
+                      -
+                    </button>
+                    <output aria-live="polite">
+                      {attackDamageByTier[tier]}
+                    </output>
+                    <button
+                      type="button"
+                      aria-label={`Increase tier ${tier} damage`}
+                      onClick={() => adjustAttackDamage(tier, 1)}
+                    >
+                      +
+                    </button>
+                  </div>
+                </div>
+              ))}
+            </div>
+          </div>
+
+          <div className="control-group control-group-wide">
+            <div className="target-heading">
+              <span>Targets</span>
+              <div>
+                <button type="button" onClick={selectAllAttackTargets}>
+                  All
+                </button>
+                <button type="button" onClick={clearAttackTargets}>
+                  None
+                </button>
+              </div>
+            </div>
+            {attackTargets.length === 0 ? (
+              <div className="target-empty">
+                No active hero snapshots are available.
+              </div>
+            ) : (
+              <div className="target-grid">
+                {attackTargets.map((entry) => {
+                  const snapshot = entry.snapshot!
+                  const selected = selectedAttackTargetIds.has(
+                    snapshot.characterId,
+                  )
+
+                  return (
+                    <label
+                      key={snapshot.characterId}
+                      className={`target-option ${selected ? 'selected' : ''}`}
+                    >
+                      <input
+                        type="checkbox"
+                        checked={selected}
+                        onChange={() =>
+                          toggleAttackTarget(snapshot.characterId)
+                        }
+                      />
+                      <span>{snapshot.characterName}</span>
+                      <small>{entry.player.name}</small>
+                    </label>
+                  )
+                })}
+              </div>
+            )}
+          </div>
+        </div>
+      </section>
+    )
+  }
+
+  function renderDirectorRoster() {
+    if (characterRoster.length === 0) {
+      return (
+        <div className="empty-state">
+          <strong>No connected players yet</strong>
+          <span>
+            Hero snapshots appear here when players open a ForgeSteel hero
+            through the extension.
+          </span>
+        </div>
+      )
+    }
+
+    return (
+      <ol className="director-roster">
+        {characterRoster.map((entry) => (
+          <li
+            key={
+              entry.player.connectionId || entry.player.id || entry.player.name
+            }
+            className={`director-card ${
+              entry.snapshot ? '' : 'director-card-empty'
+            }`}
+          >
+            <div className="director-card-top">
+              <div className="player-chip">
+                <span
+                  className="player-avatar"
+                  style={{
+                    backgroundColor: entry.player.color || '#215681',
+                  }}
+                >
+                  {getInitial(entry.player.name)}
+                </span>
+                <span>{entry.player.name}</span>
+              </div>
+              <div className="director-card-badges">
+                <span>{entry.player.role || 'PLAYER'}</span>
+                <span>
+                  {entry.snapshot
+                    ? formatSnapshotAge(entry.snapshot.updatedAt)
+                    : 'No hero'}
+                </span>
+              </div>
+            </div>
+
+            {entry.snapshot ? (
+              <div className="director-hero">
+                <div className="director-hero-title">
+                  <h3>{entry.snapshot.characterName}</h3>
+                  <p>{formatHeroSummary(entry.snapshot)}</p>
+                </div>
+
+                <div className="director-stat-grid">
+                  <DirectorStat
+                    label="Stamina"
+                    value={formatFraction(
+                      entry.snapshot.stamina.current,
+                      entry.snapshot.stamina.max,
+                    )}
+                    note={
+                      entry.snapshot.stamina.temp
+                        ? `+${entry.snapshot.stamina.temp} temp`
+                        : undefined
+                    }
+                  />
+                  <DirectorStat
+                    label="Recoveries"
+                    value={formatFraction(
+                      entry.snapshot.recoveries.current,
+                      entry.snapshot.recoveries.max,
+                    )}
+                    note={
+                      entry.snapshot.recoveries.value !== undefined
+                        ? `${entry.snapshot.recoveries.value} value`
+                        : undefined
+                    }
+                  />
+                  <DirectorStat
+                    label="Save"
+                    value={formatOptionalNumber(entry.snapshot.save.target)}
+                    note={
+                      entry.snapshot.save.bonus !== undefined
+                        ? `+${entry.snapshot.save.bonus}`
+                        : undefined
+                    }
+                  />
+                  <DirectorStat
+                    label="Speed"
+                    value={entry.snapshot.movement.speed || '-'}
+                    note={
+                      entry.snapshot.movement.size
+                        ? `Size ${entry.snapshot.movement.size}`
+                        : undefined
+                    }
+                  />
+                </div>
+
+                <div className="director-characteristics">
+                  {Object.entries(entry.snapshot.characteristics).map(
+                    ([key, value]) => (
+                      <span key={key}>
+                        <small>{key.slice(0, 3).toUpperCase()}</small>
+                        <strong>{formatOptionalNumber(value)}</strong>
+                      </span>
+                    ),
+                  )}
+                </div>
+
+                <DirectorTagSection
+                  label="Immunities"
+                  emptyLabel="No immunities"
+                  tags={entry.snapshot.immunities.map(
+                    (modifier) =>
+                      `${modifier.damageType} ${formatSignedNumber(
+                        modifier.value,
+                      )}`,
+                  )}
+                />
+                <DirectorTagSection
+                  label="Weaknesses"
+                  emptyLabel="No weaknesses"
+                  tags={entry.snapshot.weaknesses.map(
+                    (modifier) =>
+                      `${modifier.damageType} ${formatSignedNumber(
+                        modifier.value,
+                      )}`,
+                  )}
+                />
+                <DirectorTagSection
+                  label="Conditions"
+                  emptyLabel="No conditions"
+                  tags={entry.snapshot.conditions.map((condition) =>
+                    condition.text
+                      ? `${condition.type}: ${condition.text}`
+                      : condition.type,
+                  )}
+                />
+              </div>
+            ) : (
+              <p className="director-empty-note">
+                This player has the extension open, but no ForgeSteel hero page
+                is currently active.
+              </p>
+            )}
+          </li>
+        ))}
+      </ol>
+    )
   }
 
   return (
@@ -572,27 +1217,19 @@ function App() {
       </section>
 
       <section
-        className={`panel panel-rolls ${activeTab === 'rolls' ? 'visible' : ''}`}
-        aria-hidden={activeTab !== 'rolls'}
+        className={`panel panel-log ${activeTab === 'log' ? 'visible' : ''}`}
+        aria-hidden={activeTab !== 'log'}
       >
         <div className="rolls-header">
           <div>
-            <h2>Roll Feed</h2>
-            <p>
-              Shared table rolls from ForgeSteel and the manual roll panel.
-            </p>
+            <h2>Table Log</h2>
+            <p>Shared rolls, Director actions, and table-facing results.</p>
           </div>
           <div className="rolls-header-actions">
             <button
               type="button"
-              onClick={() => setManualPanelOpen((open) => !open)}
-            >
-              {manualPanelOpen ? 'Close Roller' : 'Table Roller'}
-            </button>
-            <button
-              type="button"
               className="subtle-command"
-              disabled={rolls.length === 0}
+              disabled={logEntries.length === 0}
               onClick={() => setClearConfirmOpen(true)}
             >
               Clear
@@ -600,128 +1237,34 @@ function App() {
           </div>
         </div>
 
-        {manualPanelOpen && (
-          <section className="manual-roll-panel" aria-label="Manual roll panel">
-            <div className="manual-roll-heading">
-              <div>
-                <h3>Table Roll</h3>
-                <p>
-                  {localPlayer ? `Rolling as ${localPlayer.name}` : 'Local roll'}
-                </p>
-              </div>
-              <div className="manual-roll-actions">
-                <label className="hidden-toggle hidden-toggle-heading">
-                  <input
-                    type="checkbox"
-                    checked={manualHidden}
-                    onChange={(event) => setManualHidden(event.target.checked)}
-                  />
-                  Hidden
-                </label>
-                <button
-                  type="button"
-                  className="roll-command"
-                  onClick={handleManualRoll}
-                >
-                  Roll
-                </button>
-              </div>
-            </div>
-
-            <div className="manual-roll-controls">
-              <div className="control-group">
-                <span>Dice</span>
-                <div className="segmented-control">
-                  {(['2d10', 'd10'] as ManualDice[]).map((dice) => (
-                    <button
-                      key={dice}
-                      type="button"
-                      className={manualDice === dice ? 'active' : ''}
-                      aria-pressed={manualDice === dice}
-                      onClick={() => setManualDice(dice)}
-                    >
-                      {dice}
-                    </button>
-                  ))}
-                </div>
-              </div>
-
-              <div className="control-group">
-                <span>Modifier</span>
-                <div className="modifier-stepper">
-                  <button
-                    type="button"
-                    aria-label="Decrease modifier"
-                    onClick={() => adjustManualModifier(-1)}
-                  >
-                    -
-                  </button>
-                  <output aria-live="polite">
-                    {formatModifierValue(manualModifier)}
-                  </output>
-                  <button
-                    type="button"
-                    aria-label="Increase modifier"
-                    onClick={() => adjustManualModifier(1)}
-                  >
-                    +
-                  </button>
-                </div>
-              </div>
-
-              <div
-                className={`control-group control-group-wide ${
-                  rollStateDisabled ? 'control-group-disabled' : ''
-                }`}
-              >
-                <span>Roll State</span>
-                <div
-                  className="segmented-control roll-state-control"
-                  aria-disabled={rollStateDisabled}
-                >
-                  {MANUAL_ROLL_STATES.map((state) => (
-                    <button
-                      key={state.value}
-                      type="button"
-                      className={manualRollState === state.value ? 'active' : ''}
-                      aria-pressed={manualRollState === state.value}
-                      disabled={rollStateDisabled}
-                      onClick={() => setManualRollState(state.value)}
-                    >
-                      {state.label}
-                    </button>
-                  ))}
-                </div>
-              </div>
-            </div>
-          </section>
-        )}
-
-        {rolls.length === 0 ? (
+        {logEntries.length === 0 ? (
           <div className="empty-state">
-            <strong>No rolls yet</strong>
-            <span>
-              Roll from ForgeSteel or open the table roller to send a roll
-              event here.
-            </span>
+            <strong>No log entries yet</strong>
+            <span>Roll, attack, or use a Director action to add entries here.</span>
           </div>
         ) : (
           <ol className="roll-list">
-            {rolls.map((roll) => {
-              const expanded = expandedRollIds.has(roll.id)
+            {logEntries.map((entry) => {
+              const expanded = expandedLogIds.has(entry.id)
+
+              if (entry.kind === 'damage') {
+                return renderDamageLogEntry(entry, expanded)
+              }
+
+              const roll = entry
 
               return (
                 <li
                   key={roll.id}
                   className={`roll-card ${
                     roll.visibility === 'hidden' ? 'roll-card-hidden' : ''
-                  } ${flashingRollIds.has(roll.id) ? 'roll-card-fresh' : ''}`}
+                  } ${flashingLogIds.has(roll.id) ? 'roll-card-fresh' : ''}`}
                 >
                   <button
                     type="button"
                     className="roll-card-summary"
                     aria-expanded={expanded}
-                    onClick={() => toggleRollExpanded(roll.id)}
+                    onClick={() => toggleLogExpanded(roll.id)}
                   >
                     <div className="roll-card-header">
                       <div className="player-chip">
@@ -890,10 +1433,11 @@ function App() {
               aria-labelledby="clear-rolls-title"
               onClick={(event) => event.stopPropagation()}
             >
-              <h3 id="clear-rolls-title">Clear Roll Feed</h3>
+              <h3 id="clear-rolls-title">Clear Table Log</h3>
               <p>
-                This removes all locally stored rolls from this extension panel.
-                Shared rolls already seen by other players are not recalled.
+                This removes locally stored table log entries from this
+                extension panel. Shared entries already seen by other players are
+                not recalled.
               </p>
               <div className="confirm-actions">
                 <button
@@ -906,14 +1450,125 @@ function App() {
                 <button
                   type="button"
                   className="danger-command"
-                  onClick={clearRollFeed}
+                  onClick={clearTableLog}
                 >
-                  Clear rolls
+                  Clear log
                 </button>
               </div>
             </section>
           </div>
         )}
+      </section>
+
+      <section
+        className={`panel panel-roller ${
+          activeTab === 'roller' ? 'visible' : ''
+        }`}
+        aria-hidden={activeTab !== 'roller'}
+      >
+        <div className="rolls-header">
+          <div>
+            <h2>Table Roller</h2>
+            <p>Roll simple table checks and share public results to the log.</p>
+          </div>
+        </div>
+
+        <section className="manual-roll-panel" aria-label="Manual roll panel">
+          <div className="manual-roll-heading">
+            <div>
+              <h3>Table Roll</h3>
+              <p>
+                {localPlayer ? `Rolling as ${localPlayer.name}` : 'Local roll'}
+              </p>
+            </div>
+            <div className="manual-roll-actions">
+              {isDirector && (
+                <label className="hidden-toggle hidden-toggle-heading">
+                  <input
+                    type="checkbox"
+                    checked={manualHidden}
+                    onChange={(event) => setManualHidden(event.target.checked)}
+                  />
+                  Hidden
+                </label>
+              )}
+              <button
+                type="button"
+                className="roll-command"
+                onClick={handleManualRoll}
+              >
+                Roll
+              </button>
+            </div>
+          </div>
+
+          <div className="manual-roll-controls">
+            <div className="control-group">
+              <span>Dice</span>
+              <div className="segmented-control">
+                {(['2d10', 'd10'] as ManualDice[]).map((dice) => (
+                  <button
+                    key={dice}
+                    type="button"
+                    className={manualDice === dice ? 'active' : ''}
+                    aria-pressed={manualDice === dice}
+                    onClick={() => setManualDice(dice)}
+                  >
+                    {dice}
+                  </button>
+                ))}
+              </div>
+            </div>
+
+            <div className="control-group">
+              <span>Modifier</span>
+              <div className="modifier-stepper">
+                <button
+                  type="button"
+                  aria-label="Decrease modifier"
+                  onClick={() => adjustManualModifier(-1)}
+                >
+                  -
+                </button>
+                <output aria-live="polite">
+                  {formatModifierValue(manualModifier)}
+                </output>
+                <button
+                  type="button"
+                  aria-label="Increase modifier"
+                  onClick={() => adjustManualModifier(1)}
+                >
+                  +
+                </button>
+              </div>
+            </div>
+
+            <div
+              className={`control-group control-group-wide ${
+                rollStateDisabled ? 'control-group-disabled' : ''
+              }`}
+            >
+              <span>Roll State</span>
+              <div
+                className="segmented-control roll-state-control"
+                aria-disabled={rollStateDisabled}
+              >
+                {MANUAL_ROLL_STATES.map((state) => (
+                  <button
+                    key={state.value}
+                    type="button"
+                    className={manualRollState === state.value ? 'active' : ''}
+                    aria-pressed={manualRollState === state.value}
+                    disabled={rollStateDisabled}
+                    onClick={() => setManualRollState(state.value)}
+                  >
+                    {state.label}
+                  </button>
+                ))}
+              </div>
+            </div>
+          </div>
+        </section>
       </section>
 
       <section
@@ -935,149 +1590,11 @@ function App() {
             <strong>Director tools are GM only</strong>
             <span>Open this extension as the Owlbear GM to see party data.</span>
           </div>
-        ) : characterRoster.length === 0 ? (
-          <div className="empty-state">
-            <strong>No connected players yet</strong>
-            <span>
-              Hero snapshots appear here when players open a ForgeSteel hero
-              through the extension.
-            </span>
-          </div>
         ) : (
-          <ol className="director-roster">
-            {characterRoster.map((entry) => (
-              <li
-                key={entry.player.connectionId || entry.player.id || entry.player.name}
-                className={`director-card ${
-                  entry.snapshot ? '' : 'director-card-empty'
-                }`}
-              >
-                <div className="director-card-top">
-                  <div className="player-chip">
-                    <span
-                      className="player-avatar"
-                      style={{
-                        backgroundColor: entry.player.color || '#215681',
-                      }}
-                    >
-                      {getInitial(entry.player.name)}
-                    </span>
-                    <span>{entry.player.name}</span>
-                  </div>
-                  <div className="director-card-badges">
-                    <span>{entry.player.role || 'PLAYER'}</span>
-                    <span>
-                      {entry.snapshot
-                        ? formatSnapshotAge(entry.snapshot.updatedAt)
-                        : 'No hero'}
-                    </span>
-                  </div>
-                </div>
-
-                {entry.snapshot ? (
-                  <div className="director-hero">
-                    <div className="director-hero-title">
-                      <h3>{entry.snapshot.characterName}</h3>
-                      <p>{formatHeroSummary(entry.snapshot)}</p>
-                    </div>
-
-                    <div className="director-stat-grid">
-                      <DirectorStat
-                        label="Stamina"
-                        value={formatFraction(
-                          entry.snapshot.stamina.current,
-                          entry.snapshot.stamina.max,
-                        )}
-                        note={
-                          entry.snapshot.stamina.temp
-                            ? `+${entry.snapshot.stamina.temp} temp`
-                            : undefined
-                        }
-                      />
-                      <DirectorStat
-                        label="Recoveries"
-                        value={formatFraction(
-                          entry.snapshot.recoveries.current,
-                          entry.snapshot.recoveries.max,
-                        )}
-                        note={
-                          entry.snapshot.recoveries.value !== undefined
-                            ? `${entry.snapshot.recoveries.value} value`
-                            : undefined
-                        }
-                      />
-                      <DirectorStat
-                        label="Save"
-                        value={formatOptionalNumber(
-                          entry.snapshot.save.target,
-                        )}
-                        note={
-                          entry.snapshot.save.bonus !== undefined
-                            ? `+${entry.snapshot.save.bonus}`
-                            : undefined
-                        }
-                      />
-                      <DirectorStat
-                        label="Speed"
-                        value={entry.snapshot.movement.speed || '-'}
-                        note={
-                          entry.snapshot.movement.size
-                            ? `Size ${entry.snapshot.movement.size}`
-                            : undefined
-                        }
-                      />
-                    </div>
-
-                    <div className="director-characteristics">
-                      {Object.entries(entry.snapshot.characteristics).map(
-                        ([key, value]) => (
-                          <span key={key}>
-                            <small>{key.slice(0, 3).toUpperCase()}</small>
-                            <strong>{formatOptionalNumber(value)}</strong>
-                          </span>
-                        ),
-                      )}
-                    </div>
-
-                    <DirectorTagSection
-                      label="Immunities"
-                      emptyLabel="No immunities"
-                      tags={entry.snapshot.immunities.map(
-                        (modifier) =>
-                          `${modifier.damageType} ${formatSignedNumber(
-                            modifier.value,
-                          )}`,
-                      )}
-                    />
-                    <DirectorTagSection
-                      label="Weaknesses"
-                      emptyLabel="No weaknesses"
-                      tags={entry.snapshot.weaknesses.map(
-                        (modifier) =>
-                          `${modifier.damageType} ${formatSignedNumber(
-                            modifier.value,
-                          )}`,
-                      )}
-                    />
-                    <DirectorTagSection
-                      label="Conditions"
-                      emptyLabel="No conditions"
-                      tags={entry.snapshot.conditions.map((condition) =>
-                        condition.text
-                          ? `${condition.type}: ${condition.text}`
-                          : condition.type,
-                      )}
-                    />
-                  </div>
-                ) : (
-                  <p className="director-empty-note">
-                    This player has the extension open, but no ForgeSteel hero
-                    page is currently active.
-                  </p>
-                )}
-              </li>
-            ))}
-          </ol>
+          <>
+            {renderDirectorAttackTool()}
+            {renderDirectorRoster()}
+          </>
         )}
       </section>
 
@@ -1085,7 +1602,9 @@ function App() {
         <nav
           className="tabs"
           aria-label="Extension views"
-          style={{ gridTemplateColumns: `repeat(${isDirector ? 3 : 2}, minmax(0, 1fr))` }}
+          style={{
+            gridTemplateColumns: `repeat(${isDirector ? 4 : 3}, minmax(0, 1fr))`,
+          }}
         >
           <button
             type="button"
@@ -1096,11 +1615,18 @@ function App() {
           </button>
           <button
             type="button"
-            className={activeTab === 'rolls' ? 'active' : ''}
-            onClick={() => selectTab('rolls')}
+            className={activeTab === 'log' ? 'active' : ''}
+            onClick={() => selectTab('log')}
           >
-            Rolls
-            {unseenRollIds.size > 0 && <span>{unseenRollIds.size}</span>}
+            Log
+            {unseenLogIds.size > 0 && <span>{unseenLogIds.size}</span>}
+          </button>
+          <button
+            type="button"
+            className={activeTab === 'roller' ? 'active' : ''}
+            onClick={() => selectTab('roller')}
+          >
+            Roller
           </button>
           {isDirector && (
             <button
@@ -1185,23 +1711,33 @@ function createManualRollMessage({
   rollState: ManualRollState
   rollerName: string
 }): ForgeSteelRollResultMessage {
-  const rolls = dice === '2d10' ? [rollD10(), rollD10()] : [rollD10()]
-  const naturalTotal = rolls.reduce((sum, roll) => sum + roll, 0)
-  const effectiveRollState: ManualRollState =
-    dice === '2d10' ? rollState : 'standard'
-  const stateBonus = dice === '2d10' ? getRollStateBonus(effectiveRollState) : 0
-  const total = naturalTotal + modifier + stateBonus
-  const baseTier = dice === '2d10' ? getBasePowerRollTier(total) : undefined
-  const tier =
-    dice === '2d10' ? getPowerRollTier(total, effectiveRollState) : undefined
-  const formula = formatFormula(dice, modifier, stateBonus, effectiveRollState)
-  const breakdownParts = [
-    rolls.join(' + '),
-    modifier !== 0 ? formatSignedNumber(modifier) : '',
-    stateBonus !== 0
-      ? `${formatSignedNumber(stateBonus)} ${getRollStateLabel(effectiveRollState)}`
-      : '',
-  ].filter(Boolean)
+  if (dice === 'd10') {
+    const roll = rollD10Only({ modifier })
+
+    return {
+      type: 'FORGESTEEL_ROLL_RESULT',
+      schemaVersion: 1,
+      messageId: crypto.randomUUID(),
+      timestamp: new Date().toISOString(),
+      source: 'forgesteel',
+      payload: {
+        actorName: rollerName,
+        label: 'd10 Roll',
+        formula: roll.formula,
+        total: roll.total,
+        naturalTotal: roll.naturalTotal,
+        breakdown: roll.breakdown,
+        context: {
+          kind: 'manual',
+          details: {
+            name: 'Manual d10 Roll',
+          },
+        },
+      },
+    }
+  }
+
+  const roll = rollPowerRoll({ modifier, rollState })
 
   return {
     type: 'FORGESTEEL_ROLL_RESULT',
@@ -1211,34 +1747,83 @@ function createManualRollMessage({
     source: 'forgesteel',
     payload: {
       actorName: rollerName,
-      label: dice === '2d10' ? 'Power Roll' : 'd10 Roll',
-      formula,
-      total,
-      naturalTotal,
-      tier,
-      baseTier,
-      rollState:
-        dice === '2d10' ? getRollStateLabel(effectiveRollState) : undefined,
-      breakdown: `${breakdownParts.join(' ')} = ${total}${
-        tier ? ` (Tier ${tier})` : ''
-      }`,
+      label: 'Power Roll',
+      formula: roll.formula,
+      total: roll.total,
+      naturalTotal: roll.naturalTotal,
+      tier: roll.tier,
+      baseTier: roll.baseTier,
+      rollState: roll.rollStateLabel,
+      breakdown: roll.breakdown,
       context: {
         kind: 'manual',
         details: {
-          name: dice === '2d10' ? 'Manual Power Roll' : 'Manual d10 Roll',
-          type:
-            dice === '2d10' ? getRollStateLabel(effectiveRollState) : undefined,
-          tiers: tier
-            ? [
-                {
-                  tier,
-                  text: `Result landed in tier ${tier}.`,
-                },
-              ]
-            : undefined,
+          name: 'Manual Power Roll',
+          type: roll.rollStateLabel,
+          tiers: [
+            {
+              tier: roll.tier,
+              text: `Result landed in tier ${roll.tier}.`,
+            },
+          ],
         },
       },
     },
+  }
+}
+
+function rollPowerRoll({
+  modifier,
+  rollState,
+}: {
+  modifier: number
+  rollState: ManualRollState
+}): PowerRollResult {
+  const rolls = [rollD10(), rollD10()]
+  const naturalTotal = rolls.reduce((sum, roll) => sum + roll, 0)
+  const stateBonus = getRollStateBonus(rollState)
+  const total = naturalTotal + modifier + stateBonus
+  const baseTier = getBasePowerRollTier(total)
+  const tier = getPowerRollTier(total, rollState)
+  const formula = formatFormula('2d10', modifier, stateBonus, rollState)
+  const rollStateLabel = getRollStateLabel(rollState)
+  const breakdownParts = [
+    rolls.join(' + '),
+    modifier !== 0 ? formatSignedNumber(modifier) : '',
+    stateBonus !== 0
+      ? `${formatSignedNumber(stateBonus)} ${rollStateLabel}`
+      : '',
+  ].filter(Boolean)
+
+  return {
+    rolls,
+    naturalTotal,
+    total,
+    baseTier,
+    tier,
+    stateBonus,
+    formula,
+    rollStateLabel,
+    breakdown: `${breakdownParts.join(' ')} = ${total} (Tier ${tier})`,
+  }
+}
+
+function rollD10Only({ modifier }: { modifier: number }) {
+  const rolls = [rollD10()]
+  const naturalTotal = rolls[0]
+  const total = naturalTotal + modifier
+  const formula = formatFormula('d10', modifier, 0, 'standard')
+  const breakdownParts = [
+    naturalTotal.toString(),
+    modifier !== 0 ? formatSignedNumber(modifier) : '',
+  ].filter(Boolean)
+
+  return {
+    rolls,
+    naturalTotal,
+    total,
+    formula,
+    breakdown: `${breakdownParts.join(' ')} = ${total}`,
   }
 }
 
@@ -1277,6 +1862,52 @@ function getPowerRollTier(total: number, rollState: ManualRollState): 1 | 2 | 3 
   return tier
 }
 
+function calculateTargetDamage(
+  snapshot: ForgeSteelCharacterSnapshotPayload,
+  damageType: DamageType,
+  baseDamage: number,
+) {
+  const immunities = getApplicableDamageAdjustments(
+    snapshot.immunities,
+    damageType,
+  )
+  const weaknesses = getApplicableDamageAdjustments(
+    snapshot.weaknesses,
+    damageType,
+  )
+  const immunityTotal = immunities.reduce(
+    (sum, modifier) => sum + modifier.value,
+    0,
+  )
+  const weaknessTotal = weaknesses.reduce(
+    (sum, modifier) => sum + modifier.value,
+    0,
+  )
+  const adjustment = weaknessTotal - immunityTotal
+
+  return {
+    adjustment,
+    finalDamage: Math.max(0, baseDamage + adjustment),
+    immunities,
+    weaknesses,
+  }
+}
+
+function getApplicableDamageAdjustments(
+  modifiers: Array<{ damageType: string; value: number }>,
+  damageType: DamageType,
+) {
+  return modifiers.filter(
+    (modifier) =>
+      sameDamageType(modifier.damageType, damageType) ||
+      (damageType !== 'Damage' && sameDamageType(modifier.damageType, 'Damage')),
+  )
+}
+
+function sameDamageType(left: string, right: string): boolean {
+  return left.toLowerCase() === right.toLowerCase()
+}
+
 function formatFormula(
   dice: ManualDice,
   modifier: number,
@@ -1313,7 +1944,7 @@ function getRollStateLabel(rollState: ManualRollState): string {
   )
 }
 
-function getAbilityName(roll: StoredRoll): string {
+function getAbilityName(roll: StoredRollLogEntry): string {
   return roll.context?.details?.name || roll.label
 }
 
@@ -1373,27 +2004,33 @@ function formatSnapshotAge(timestamp: string): string {
   return `${Math.floor(seconds / 60)}m ago`
 }
 
-function formatTierValue(roll: StoredRoll): string {
+function formatTierValue(roll: StoredRollLogEntry): string {
   return roll.tier === undefined ? '-' : roll.tier.toString()
 }
 
-function isTierShifted(roll: StoredRoll): boolean {
+function isTierShifted(entry: {
+  tier?: 1 | 2 | 3
+  baseTier?: 1 | 2 | 3
+}): boolean {
   return (
-    roll.tier !== undefined &&
-    roll.baseTier !== undefined &&
-    roll.tier !== roll.baseTier
+    entry.tier !== undefined &&
+    entry.baseTier !== undefined &&
+    entry.tier !== entry.baseTier
   )
 }
 
-function getTierAdjustmentLabel(roll: StoredRoll): string | undefined {
-  if (!isTierShifted(roll)) {
+function getTierAdjustmentLabel(entry: {
+  tier?: 1 | 2 | 3
+  baseTier?: 1 | 2 | 3
+}): string | undefined {
+  if (!isTierShifted(entry)) {
     return undefined
   }
 
-  return `from ${roll.baseTier}`
+  return `from ${entry.baseTier}`
 }
 
-function getPlayerName(roll: StoredRoll): string {
+function getPlayerName(roll: StoredRollLogEntry): string {
   if (roll.visibility === 'hidden') {
     return `${roll.player?.name || 'Local'} (hidden)`
   }
@@ -1401,7 +2038,7 @@ function getPlayerName(roll: StoredRoll): string {
   return roll.player?.name || 'Unknown Player'
 }
 
-function getPlayerInitial(roll: StoredRoll): string {
+function getPlayerInitial(roll: StoredRollLogEntry): string {
   return getPlayerName(roll).trim().charAt(0).toUpperCase() || '?'
 }
 

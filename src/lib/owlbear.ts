@@ -4,10 +4,18 @@ import {
   type ForgeSteelRollResultMessage,
   parseForgeSteelMessage,
 } from './bridge'
-import type { RollPlayer, RollVisibility } from './rollStorage'
+import {
+  createRollLogEntry,
+  isTableLogEntry,
+  type RollPlayer,
+  type RollVisibility,
+  type StoredDamageLogEntry,
+  type TableLogEntry,
+} from './logStorage'
 
 const ROLL_CHANNEL = 'net.forgesteel.owlbear.rolls.v1'
 const SHARED_ROLL_TYPE = 'FORGESTEEL_OWLBEAR_SHARED_ROLL'
+const SHARED_LOG_TYPE = 'FORGESTEEL_OWLBEAR_SHARED_LOG'
 const CHARACTER_CHANNEL = 'net.forgesteel.owlbear.characters.v1'
 const CHARACTER_SNAPSHOT_UPDATED_TYPE =
   'FORGESTEEL_OWLBEAR_CHARACTER_SNAPSHOT_UPDATED'
@@ -43,10 +51,23 @@ export type SharedRollMessage = {
   roll: ForgeSteelRollResultMessage
 }
 
+export type SharedLogMessage = {
+  type: typeof SHARED_LOG_TYPE
+  schemaVersion: 1
+  messageId: string
+  timestamp: string
+  source: 'forgesteel-owlbear-extension'
+  entry: TableLogEntry
+}
+
 export type SharedRollEvent = {
   message: ForgeSteelRollResultMessage
   visibility: RollVisibility
   player?: RollPlayer
+}
+
+export type SharedLogEvent = {
+  entry: TableLogEntry
 }
 
 export type CharacterRosterEntry = {
@@ -207,6 +228,95 @@ export async function broadcastRoll(
   }
 }
 
+export async function broadcastLogEntry(entry: TableLogEntry): Promise<void> {
+  if (!OBR.isAvailable || !OBR.isReady) {
+    return
+  }
+
+  if (entry.visibility === 'hidden') {
+    return
+  }
+
+  try {
+    await OBR.broadcast.sendMessage(
+      ROLL_CHANNEL,
+      {
+        type: SHARED_LOG_TYPE,
+        schemaVersion: CURRENT_SHARED_SCHEMA_VERSION,
+        messageId: crypto.randomUUID(),
+        timestamp: new Date().toISOString(),
+        source: 'forgesteel-owlbear-extension',
+        entry,
+      } satisfies SharedLogMessage,
+      {
+        destination: 'ALL',
+      },
+    )
+  } catch (error) {
+    console.warn('Unable to broadcast ForgeSteel table log entry.', error)
+  }
+}
+
+export async function broadcastDamageLog(
+  entry: StoredDamageLogEntry,
+): Promise<void> {
+  await broadcastLogEntry(entry)
+}
+
+export async function listenForSharedLogEvents(
+  onLog: (event: SharedLogEvent) => void,
+): Promise<() => void> {
+  if (!OBR.isAvailable) {
+    return () => undefined
+  }
+
+  try {
+    await waitForOwlbearReady()
+
+    return OBR.broadcast.onMessage(ROLL_CHANNEL, (event) => {
+      const sharedLogMessage = parseSharedLogMessage(event.data)
+      if (sharedLogMessage) {
+        onLog({ entry: sharedLogMessage.entry })
+        return
+      }
+
+      const sharedRollMessage = parseSharedRollMessage(event.data)
+      if (sharedRollMessage) {
+        onLog({
+          entry: createRollLogEntry(sharedRollMessage.roll, {
+            visibility: sharedRollMessage.visibility,
+            player:
+              sharedRollMessage.sender ??
+              fallbackPlayerFromConnection(event.connectionId),
+            source:
+              sharedRollMessage.roll.payload.context?.kind === 'manual'
+                ? 'manual'
+                : 'forgesteel',
+          }),
+        })
+        return
+      }
+
+      const legacyMessage = parseForgeSteelMessage(event.data)
+      if (legacyMessage?.type === 'FORGESTEEL_ROLL_RESULT') {
+        onLog({
+          entry: createRollLogEntry(legacyMessage, {
+            visibility: 'public',
+            player: fallbackPlayerFromConnection(event.connectionId),
+            source:
+              legacyMessage.payload.context?.kind === 'manual'
+                ? 'manual'
+                : 'forgesteel',
+          }),
+        })
+      }
+    })
+  } catch (error) {
+    console.warn('Unable to listen for shared ForgeSteel table log.', error)
+    return () => undefined
+  }
+}
+
 export async function listenForSharedRolls(
   onRoll: (event: SharedRollEvent) => void,
 ): Promise<() => void> {
@@ -272,6 +382,32 @@ export async function resizeActionPopover({
       status: 'error',
       message: 'Owlbear did not accept the panel resize request.',
     }
+  }
+}
+
+function parseSharedLogMessage(data: unknown): SharedLogMessage | null {
+  if (!isRecord(data)) {
+    return null
+  }
+
+  if (
+    data.type !== SHARED_LOG_TYPE ||
+    data.schemaVersion !== CURRENT_SHARED_SCHEMA_VERSION ||
+    data.source !== 'forgesteel-owlbear-extension' ||
+    typeof data.messageId !== 'string' ||
+    typeof data.timestamp !== 'string' ||
+    !isTableLogEntry(data.entry)
+  ) {
+    return null
+  }
+
+  return {
+    type: data.type,
+    schemaVersion: data.schemaVersion,
+    messageId: data.messageId,
+    timestamp: data.timestamp,
+    source: data.source,
+    entry: data.entry,
   }
 }
 
