@@ -733,7 +733,7 @@ function App() {
         logIds.forEach((logId) => nextIds.delete(logId))
         return nextIds
       })
-    }, 2600)
+    }, 6000)
 
     flashTimeoutsRef.current.push(timeoutId)
   }
@@ -895,13 +895,11 @@ function App() {
               {isMine && <span>You</span>}
               <span>Damage</span>
               <span>{entry.damageType}</span>
+              {flashingLogIds.has(entry.id) && (
+                <span className="roll-card-new-badge">New</span>
+              )}
               {entry.visibility === 'hidden' && (
-                <span
-                  className="hidden-visibility-icon"
-                  role="img"
-                  aria-label="Hidden"
-                  title="Hidden"
-                />
+                <span className="hidden-visibility-badge">Hidden</span>
               )}
             </div>
             <time dateTime={entry.timestamp}>
@@ -1427,13 +1425,13 @@ function App() {
                         <span>
                           {roll.source === 'manual' ? 'Manual' : 'ForgeSteel'}
                         </span>
+                        {flashingLogIds.has(roll.id) && (
+                          <span className="roll-card-new-badge">New</span>
+                        )}
                         {roll.visibility === 'hidden' && (
-                          <span
-                            className="hidden-visibility-icon"
-                            role="img"
-                            aria-label="Hidden"
-                            title="Hidden"
-                          />
+                          <span className="hidden-visibility-badge">
+                            Hidden
+                          </span>
                         )}
                       </div>
                       <time dateTime={roll.timestamp}>

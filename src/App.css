@@ -440,23 +440,23 @@ h1 {
 }
 
 .roll-card-mine {
-  border-color: rgba(140, 168, 90, 0.64);
+  border-color: rgba(111, 119, 132, 0.62);
   background:
-    linear-gradient(135deg, rgba(140, 168, 90, 0.12), rgba(32, 33, 38, 0.96)),
+    linear-gradient(135deg, rgba(111, 119, 132, 0.12), rgba(32, 33, 38, 0.96)),
     #202126;
 }
 
 .roll-card-mine:not(.damage-card) {
-  border-top-color: #8ca85a;
+  border-top-color: #5e6672;
 }
 
 .damage-card.roll-card-mine {
-  border-top-color: #c98735;
+  border-top-color: #6a707a;
 }
 
 .roll-card-mine .roll-card-summary:hover,
 .roll-card-mine .roll-card-summary:focus-visible {
-  background: rgba(140, 168, 90, 0.08);
+  background: rgba(111, 119, 132, 0.09);
 }
 
 .roll-card-hidden.roll-card-mine {
@@ -468,29 +468,24 @@ h1 {
       transparent 6px,
       transparent 13px
     ),
-    linear-gradient(135deg, rgba(140, 168, 90, 0.12), rgba(32, 33, 38, 0.96)),
+    linear-gradient(135deg, rgba(111, 119, 132, 0.12), rgba(32, 33, 38, 0.96)),
     #202126;
 }
 
 .roll-card-fresh {
-  animation: fresh-roll-pulse 2.6s ease-out;
+  border-color: rgba(118, 172, 210, 0.72);
+  box-shadow:
+    0 0 0 1px rgba(118, 172, 210, 0.2),
+    0 8px 24px rgba(33, 86, 129, 0.22);
 }
 
-@keyframes fresh-roll-pulse {
-  0% {
-    border-color: rgba(118, 172, 210, 0.95);
-    box-shadow:
-      0 0 0 1px rgba(118, 172, 210, 0.36),
-      0 8px 24px rgba(33, 86, 129, 0.34);
-  }
-  70% {
-    border-color: #3b3f47;
-    box-shadow: 0 2px 8px rgba(0, 0, 0, 0.28);
-  }
-  100% {
-    border-color: #3b3f47;
-    box-shadow: 0 2px 8px rgba(0, 0, 0, 0.28);
-  }
+.roll-card-fresh::before {
+  content: '';
+  position: absolute;
+  inset: 0 auto 0 0;
+  width: 4px;
+  background: #76acd2;
+  pointer-events: none;
 }
 
 .roll-card-header,
@@ -574,35 +569,16 @@ h1 {
   font-weight: 800;
 }
 
-.roll-card-badges .hidden-visibility-icon {
-  position: relative;
-  width: 22px;
-  min-width: 22px;
-  padding: 0;
-  color: #c3c8d0;
+.roll-card-badges .hidden-visibility-badge {
+  color: #d2d6dc;
+  border-color: rgba(166, 173, 185, 0.58);
+  background: rgba(109, 115, 128, 0.2);
 }
 
-.hidden-visibility-icon::before {
-  content: '';
-  position: absolute;
-  left: 5px;
-  top: 6px;
-  width: 10px;
-  height: 6px;
-  border: 2px solid currentColor;
-  border-radius: 999px;
-}
-
-.hidden-visibility-icon::after {
-  content: '';
-  position: absolute;
-  left: 4px;
-  top: 9px;
-  width: 14px;
-  height: 2px;
-  border-radius: 999px;
-  background: currentColor;
-  transform: rotate(-38deg);
+.roll-card-badges .roll-card-new-badge {
+  color: #ffffff;
+  border-color: rgba(118, 172, 210, 0.74);
+  background: #215681;
 }
 
 .show-hidden-command {
@@ -1526,9 +1502,9 @@ h1 {
 }
 
 .extension-shell.theme-light .roll-card-mine {
-  border-color: rgba(111, 139, 62, 0.56);
+  border-color: rgba(132, 143, 157, 0.5);
   background:
-    linear-gradient(135deg, rgba(140, 168, 90, 0.16), rgba(255, 255, 255, 0.96)),
+    linear-gradient(135deg, rgba(132, 143, 157, 0.13), rgba(255, 255, 255, 0.96)),
     #ffffff;
 }
 
@@ -1553,7 +1529,7 @@ h1 {
       transparent 6px,
       transparent 13px
     ),
-    linear-gradient(135deg, rgba(140, 168, 90, 0.16), rgba(255, 255, 255, 0.96)),
+    linear-gradient(135deg, rgba(132, 143, 157, 0.13), rgba(255, 255, 255, 0.96)),
     #ffffff;
 }
 
@@ -1564,7 +1540,7 @@ h1 {
 
 .extension-shell.theme-light .roll-card-mine .roll-card-summary:hover,
 .extension-shell.theme-light .roll-card-mine .roll-card-summary:focus-visible {
-  background: rgba(140, 168, 90, 0.12);
+  background: rgba(132, 143, 157, 0.1);
 }
 
 .extension-shell.theme-light .manual-roll-heading h3,
@@ -1673,6 +1649,18 @@ h1 {
   color: #394454;
   border-color: #d3d9e2;
   background: #f4f6f8;
+}
+
+.extension-shell.theme-light .roll-card-badges .hidden-visibility-badge {
+  color: #394454;
+  border-color: #c2c9d3;
+  background: #eceff4;
+}
+
+.extension-shell.theme-light .roll-card-badges .roll-card-new-badge {
+  color: #ffffff;
+  border-color: #2f6f9c;
+  background: #215681;
 }
 
 .extension-shell.theme-light .roll-score-total,
