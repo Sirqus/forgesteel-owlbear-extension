@@ -73,7 +73,7 @@ export type OwlbearApplyDefaultOptionsMessage = {
   schemaVersion: 1
   messageId: string
   timestamp: string
-  source: 'forgesteel-owlbear'
+  source: 'forgesteel-owlbear-extension'
   payload: OwlbearDefaultOptionsPayload
 }
 
@@ -181,7 +181,7 @@ function createDefaultOptionsMessage(): OwlbearApplyDefaultOptionsMessage {
     schemaVersion: CURRENT_SCHEMA_VERSION,
     messageId: crypto.randomUUID(),
     timestamp: new Date().toISOString(),
-    source: 'forgesteel-owlbear',
+    source: 'forgesteel-owlbear-extension',
     payload: {
       shownStandardAbilities: 'all',
       compactView: false,

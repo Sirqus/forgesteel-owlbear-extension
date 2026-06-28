@@ -31,7 +31,7 @@ export type SharedRollMessage = {
   schemaVersion: 1
   messageId: string
   timestamp: string
-  source: 'forgesteel-owlbear'
+  source: 'forgesteel-owlbear-extension'
   visibility: RollVisibility
   sender?: RollPlayer
   roll: ForgeSteelRollResultMessage
@@ -114,7 +114,7 @@ export async function broadcastRoll(
       schemaVersion: CURRENT_SHARED_SCHEMA_VERSION,
       messageId: crypto.randomUUID(),
       timestamp: new Date().toISOString(),
-      source: 'forgesteel-owlbear',
+      source: 'forgesteel-owlbear-extension',
       visibility,
       sender: await getCurrentPlayerInfo(),
       roll: message,
@@ -202,7 +202,7 @@ function parseSharedRollMessage(data: unknown): SharedRollMessage | null {
   if (
     data.type !== SHARED_ROLL_TYPE ||
     data.schemaVersion !== CURRENT_SHARED_SCHEMA_VERSION ||
-    data.source !== 'forgesteel-owlbear' ||
+    data.source !== 'forgesteel-owlbear-extension' ||
     typeof data.messageId !== 'string' ||
     typeof data.timestamp !== 'string' ||
     (data.visibility !== 'public' && data.visibility !== 'hidden') ||

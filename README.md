@@ -27,7 +27,7 @@ npm.cmd run start -- --host 127.0.0.1 --port 5174 --strictPort
 ```
 
 ```powershell
-cd C:\RPG\forgesteel-owlbear
+cd C:\RPG\forgesteel-owlbear-extension
 npm.cmd run dev -- --host 127.0.0.1 --port 5173 --strictPort
 ```
 
