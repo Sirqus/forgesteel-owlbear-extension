@@ -8,7 +8,7 @@ import {
   getCurrentPlayerInfo,
   listenForSharedLogEvents,
   setActionBadgeCount,
-  showSharedRollNotification,
+  showSharedLogNotification,
 } from './lib/owlbear'
 import { isSameRollPlayer } from './lib/playerIdentity'
 
@@ -25,10 +25,7 @@ async function startBackgroundListener() {
     }
 
     updateUnreadBadge(event.entry)
-
-    if (event.entry.kind === 'roll') {
-      void showSharedRollNotification(event.entry)
-    }
+    void showSharedLogNotification(event.entry)
   })
 }
 

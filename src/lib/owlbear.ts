@@ -153,8 +153,8 @@ export async function setActionBadgeCount(count: number): Promise<void> {
   }
 }
 
-export async function showSharedRollNotification(
-  entry: StoredRollLogEntry,
+export async function showSharedLogNotification(
+  entry: TableLogEntry,
 ): Promise<void> {
   if (!OBR.isAvailable) {
     return
@@ -164,17 +164,17 @@ export async function showSharedRollNotification(
     await waitForOwlbearReady()
 
     const notificationId = await OBR.notification.show(
-      formatSharedRollNotification(entry),
+      formatSharedLogNotification(entry),
       'INFO',
     )
 
     window.setTimeout(() => {
       void OBR.notification.close(notificationId).catch((error) => {
-        console.warn('Unable to close ForgeSteel roll notification.', error)
+        console.warn('Unable to close ForgeSteel log notification.', error)
       })
     }, 4200)
   } catch (error) {
-    console.warn('Unable to show ForgeSteel roll notification.', error)
+    console.warn('Unable to show ForgeSteel log notification.', error)
   }
 }
 
@@ -502,6 +502,14 @@ function fallbackPlayerFromConnection(connectionId: string): RollPlayer {
   }
 }
 
+function formatSharedLogNotification(entry: TableLogEntry): string {
+  if (entry.kind === 'damage') {
+    return formatSharedDamageNotification(entry)
+  }
+
+  return formatSharedRollNotification(entry)
+}
+
 function formatSharedRollNotification(entry: StoredRollLogEntry): string {
   const playerName = entry.player?.name || 'A player'
   const naturalTotal =
@@ -509,6 +517,18 @@ function formatSharedRollNotification(entry: StoredRollLogEntry): string {
   const tier = entry.tier === undefined ? '-' : entry.tier.toString()
 
   return `${playerName} rolled for ${entry.actorName}: NAT ${naturalTotal}, TOTAL ${entry.total}, TIER ${tier}`
+}
+
+function formatSharedDamageNotification(entry: StoredDamageLogEntry): string {
+  const playerName = entry.player?.name || 'Director'
+  const targetCount = entry.targets.length
+  const totalDamage = entry.targets.reduce(
+    (sum, target) => sum + target.finalDamage,
+    0,
+  )
+  const targetLabel = targetCount === 1 ? 'target' : 'targets'
+
+  return `${playerName} used ${entry.title}: ${targetCount} ${targetLabel}, ${totalDamage} total ${entry.damageType}`
 }
 
 function createCharacterRoster(players: Player[]): CharacterRosterEntry[] {
