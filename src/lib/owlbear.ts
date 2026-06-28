@@ -1,5 +1,6 @@
-import OBR from '@owlbear-rodeo/sdk'
+import OBR, { type Player } from '@owlbear-rodeo/sdk'
 import {
+  type ForgeSteelCharacterSnapshotPayload,
   type ForgeSteelRollResultMessage,
   parseForgeSteelMessage,
 } from './bridge'
@@ -7,6 +8,11 @@ import type { RollPlayer, RollVisibility } from './rollStorage'
 
 const ROLL_CHANNEL = 'net.forgesteel.owlbear.rolls.v1'
 const SHARED_ROLL_TYPE = 'FORGESTEEL_OWLBEAR_SHARED_ROLL'
+const CHARACTER_CHANNEL = 'net.forgesteel.owlbear.characters.v1'
+const CHARACTER_SNAPSHOT_UPDATED_TYPE =
+  'FORGESTEEL_OWLBEAR_CHARACTER_SNAPSHOT_UPDATED'
+const CHARACTER_SNAPSHOT_METADATA_KEY =
+  'net.forgesteel.owlbear.characterSnapshot.v1'
 const CURRENT_SHARED_SCHEMA_VERSION = 1
 
 export type OwlbearStatus =
@@ -41,6 +47,11 @@ export type SharedRollEvent = {
   message: ForgeSteelRollResultMessage
   visibility: RollVisibility
   player?: RollPlayer
+}
+
+export type CharacterRosterEntry = {
+  player: RollPlayer
+  snapshot: ForgeSteelCharacterSnapshotPayload | null
 }
 
 export async function initializeOwlbear(): Promise<OwlbearAdapterState> {
@@ -93,6 +104,76 @@ export async function getCurrentPlayerInfo(): Promise<RollPlayer | undefined> {
   } catch (error) {
     console.warn('Unable to read Owlbear player info.', error)
     return undefined
+  }
+}
+
+export async function publishCharacterSnapshot(
+  snapshot: ForgeSteelCharacterSnapshotPayload | null,
+): Promise<void> {
+  if (!OBR.isAvailable) {
+    return
+  }
+
+  try {
+    await waitForOwlbearReady()
+    await OBR.player.setMetadata({
+      [CHARACTER_SNAPSHOT_METADATA_KEY]: snapshot,
+    })
+    await OBR.broadcast.sendMessage(
+      CHARACTER_CHANNEL,
+      {
+        type: CHARACTER_SNAPSHOT_UPDATED_TYPE,
+        schemaVersion: CURRENT_SHARED_SCHEMA_VERSION,
+        messageId: crypto.randomUUID(),
+        timestamp: new Date().toISOString(),
+        source: 'forgesteel-owlbear-extension',
+      },
+      { destination: 'ALL' },
+    )
+  } catch (error) {
+    console.warn('Unable to publish ForgeSteel character snapshot.', error)
+  }
+}
+
+export async function listenForCharacterRoster(
+  onRoster: (entries: CharacterRosterEntry[]) => void,
+): Promise<() => void> {
+  if (!OBR.isAvailable) {
+    return () => undefined
+  }
+
+  try {
+    await waitForOwlbearReady()
+
+    const refreshRoster = async () => {
+      try {
+        onRoster(createCharacterRoster(await OBR.party.getPlayers()))
+      } catch (error) {
+        console.warn('Unable to refresh ForgeSteel character roster.', error)
+      }
+    }
+
+    await refreshRoster()
+
+    const unsubscribeParty = OBR.party.onChange((players) => {
+      onRoster(createCharacterRoster(players))
+    })
+    const unsubscribeBroadcast = OBR.broadcast.onMessage(
+      CHARACTER_CHANNEL,
+      (event) => {
+        if (isCharacterSnapshotUpdatedMessage(event.data)) {
+          void refreshRoster()
+        }
+      },
+    )
+
+    return () => {
+      unsubscribeParty()
+      unsubscribeBroadcast()
+    }
+  } catch (error) {
+    console.warn('Unable to listen for ForgeSteel character roster.', error)
+    return () => undefined
   }
 }
 
@@ -235,6 +316,83 @@ function fallbackPlayerFromConnection(connectionId: string): RollPlayer {
   }
 }
 
+function createCharacterRoster(players: Player[]): CharacterRosterEntry[] {
+  return players.map((player) => ({
+    player: {
+      id: player.id,
+      connectionId: player.connectionId,
+      name: player.name,
+      color: player.color,
+      role: player.role,
+    },
+    snapshot: parseCharacterSnapshotMetadata(player.metadata),
+  }))
+}
+
+function parseCharacterSnapshotMetadata(
+  metadata: Record<string, unknown>,
+): ForgeSteelCharacterSnapshotPayload | null {
+  const snapshot = metadata[CHARACTER_SNAPSHOT_METADATA_KEY]
+
+  if (snapshot === null || snapshot === undefined) {
+    return null
+  }
+
+  return isCharacterSnapshotPayload(snapshot) ? snapshot : null
+}
+
+function isCharacterSnapshotUpdatedMessage(data: unknown): boolean {
+  return (
+    isRecord(data) &&
+    data.type === CHARACTER_SNAPSHOT_UPDATED_TYPE &&
+    data.schemaVersion === CURRENT_SHARED_SCHEMA_VERSION &&
+    data.source === 'forgesteel-owlbear-extension' &&
+    typeof data.messageId === 'string' &&
+    typeof data.timestamp === 'string'
+  )
+}
+
+function isCharacterSnapshotPayload(
+  value: unknown,
+): value is ForgeSteelCharacterSnapshotPayload {
+  if (!isRecord(value)) {
+    return false
+  }
+
+  return (
+    typeof value.characterId === 'string' &&
+    typeof value.characterName === 'string' &&
+    optionalString(value.description) &&
+    optionalNumber(value.level) &&
+    optionalString(value.ancestryName) &&
+    optionalString(value.className) &&
+    optionalString(value.subclassName) &&
+    isOptionalNumberRecord(value.stamina, [
+      'current',
+      'max',
+      'temp',
+      'windedAt',
+      'deadAt',
+    ]) &&
+    isOptionalNumberRecord(value.recoveries, ['current', 'max', 'value']) &&
+    isOptionalNumberRecord(value.characteristics, [
+      'might',
+      'agility',
+      'reason',
+      'intuition',
+      'presence',
+    ]) &&
+    isMovementPayload(value.movement) &&
+    isOptionalNumberRecord(value.potencies, ['weak', 'average', 'strong']) &&
+    isOptionalNumberRecord(value.save, ['target', 'bonus']) &&
+    isDamageAdjustmentArray(value.immunities) &&
+    isDamageAdjustmentArray(value.weaknesses) &&
+    isStringArray(value.conditionImmunities) &&
+    isConditionArray(value.conditions) &&
+    typeof value.updatedAt === 'string'
+  )
+}
+
 function isRollPlayer(value: unknown): value is RollPlayer {
   if (!isRecord(value)) {
     return false
@@ -252,6 +410,71 @@ function isRollPlayer(value: unknown): value is RollPlayer {
 
 function isRecord(value: unknown): value is Record<string, unknown> {
   return typeof value === 'object' && value !== null
+}
+
+function optionalString(value: unknown): boolean {
+  return value === undefined || typeof value === 'string'
+}
+
+function optionalNumber(value: unknown): boolean {
+  return value === undefined || (typeof value === 'number' && Number.isFinite(value))
+}
+
+function isOptionalNumberRecord(
+  value: unknown,
+  allowedKeys: string[],
+): boolean {
+  if (!isRecord(value)) {
+    return false
+  }
+
+  return Object.entries(value).every(
+    ([key, item]) => allowedKeys.includes(key) && optionalNumber(item),
+  )
+}
+
+function isMovementPayload(value: unknown): boolean {
+  if (!isRecord(value)) {
+    return false
+  }
+
+  return (
+    optionalString(value.size) &&
+    optionalString(value.speed) &&
+    optionalNumber(value.stability) &&
+    optionalNumber(value.disengage)
+  )
+}
+
+function isDamageAdjustmentArray(value: unknown): boolean {
+  return (
+    Array.isArray(value) &&
+    value.every(
+      (item) =>
+        isRecord(item) &&
+        typeof item.damageType === 'string' &&
+        typeof item.value === 'number' &&
+        Number.isFinite(item.value),
+    )
+  )
+}
+
+function isStringArray(value: unknown): boolean {
+  return Array.isArray(value) && value.every((item) => typeof item === 'string')
+}
+
+function isConditionArray(value: unknown): boolean {
+  return (
+    Array.isArray(value) &&
+    value.every(
+      (item) =>
+        isRecord(item) &&
+        typeof item.id === 'string' &&
+        typeof item.type === 'string' &&
+        typeof item.text === 'string' &&
+        typeof item.ends === 'string',
+    )
+  )
 }
 
 function waitForOwlbearReady(): Promise<void> {

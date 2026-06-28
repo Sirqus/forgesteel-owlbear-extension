@@ -4,6 +4,7 @@ export const CURRENT_SCHEMA_VERSION = 1
 export type ForgeSteelMessageType =
   | 'FORGESTEEL_READY'
   | 'FORGESTEEL_ROLL_RESULT'
+  | 'FORGESTEEL_CHARACTER_SNAPSHOT'
 
 export type ForgeSteelRollPayload = {
   actorName: string
@@ -40,6 +41,66 @@ export type ForgeSteelRollContext = {
   }
 }
 
+export type ForgeSteelCharacterSnapshotPayload = {
+  characterId: string
+  characterName: string
+  description?: string
+  level?: number
+  ancestryName?: string
+  className?: string
+  subclassName?: string
+  stamina: {
+    current?: number
+    max?: number
+    temp?: number
+    windedAt?: number
+    deadAt?: number
+  }
+  recoveries: {
+    current?: number
+    max?: number
+    value?: number
+  }
+  characteristics: {
+    might?: number
+    agility?: number
+    reason?: number
+    intuition?: number
+    presence?: number
+  }
+  movement: {
+    size?: string
+    speed?: string
+    stability?: number
+    disengage?: number
+  }
+  potencies: {
+    weak?: number
+    average?: number
+    strong?: number
+  }
+  save: {
+    target?: number
+    bonus?: number
+  }
+  immunities: Array<{
+    damageType: string
+    value: number
+  }>
+  weaknesses: Array<{
+    damageType: string
+    value: number
+  }>
+  conditionImmunities: string[]
+  conditions: Array<{
+    id: string
+    type: string
+    text: string
+    ends: string
+  }>
+  updatedAt: string
+}
+
 export type ForgeSteelBaseMessage = {
   type: ForgeSteelMessageType
   schemaVersion: 1
@@ -57,9 +118,15 @@ export type ForgeSteelRollResultMessage = ForgeSteelBaseMessage & {
   payload: ForgeSteelRollPayload
 }
 
+export type ForgeSteelCharacterSnapshotMessage = ForgeSteelBaseMessage & {
+  type: 'FORGESTEEL_CHARACTER_SNAPSHOT'
+  payload: ForgeSteelCharacterSnapshotPayload | null
+}
+
 export type ForgeSteelBridgeMessage =
   | ForgeSteelReadyMessage
   | ForgeSteelRollResultMessage
+  | ForgeSteelCharacterSnapshotMessage
 
 export type OwlbearDefaultOptionsPayload = {
   shownStandardAbilities: 'all' | string[]
@@ -86,6 +153,11 @@ export type BridgeEvent =
   | {
       kind: 'roll'
       message: ForgeSteelRollResultMessage
+      origin: string
+    }
+  | {
+      kind: 'character'
+      message: ForgeSteelCharacterSnapshotMessage
       origin: string
     }
 
@@ -150,6 +222,11 @@ export function listenForForgeSteelMessages({
       return
     }
 
+    if (message.type === 'FORGESTEEL_CHARACTER_SNAPSHOT') {
+      onEvent({ kind: 'character', message, origin: event.origin })
+      return
+    }
+
     onEvent({ kind: 'roll', message, origin: event.origin })
   }
 
@@ -211,6 +288,14 @@ export function parseForgeSteelMessage(
     return data as ForgeSteelReadyMessage
   }
 
+  if (data.type === 'FORGESTEEL_CHARACTER_SNAPSHOT') {
+    if (data.payload !== null && !isCharacterSnapshotPayload(data.payload)) {
+      return null
+    }
+
+    return data as ForgeSteelCharacterSnapshotMessage
+  }
+
   if (data.type !== 'FORGESTEEL_ROLL_RESULT') {
     return null
   }
@@ -239,6 +324,47 @@ function isRollPayload(payload: unknown): payload is ForgeSteelRollPayload {
     optionalString(payload.rollState) &&
     (payload.breakdown === undefined || typeof payload.breakdown === 'string') &&
     (payload.context === undefined || isRollContext(payload.context))
+  )
+}
+
+function isCharacterSnapshotPayload(
+  payload: unknown,
+): payload is ForgeSteelCharacterSnapshotPayload {
+  if (!isRecord(payload)) {
+    return false
+  }
+
+  return (
+    typeof payload.characterId === 'string' &&
+    typeof payload.characterName === 'string' &&
+    optionalString(payload.description) &&
+    optionalFiniteNumber(payload.level) &&
+    optionalString(payload.ancestryName) &&
+    optionalString(payload.className) &&
+    optionalString(payload.subclassName) &&
+    isOptionalNumberRecord(payload.stamina, [
+      'current',
+      'max',
+      'temp',
+      'windedAt',
+      'deadAt',
+    ]) &&
+    isOptionalNumberRecord(payload.recoveries, ['current', 'max', 'value']) &&
+    isOptionalNumberRecord(payload.characteristics, [
+      'might',
+      'agility',
+      'reason',
+      'intuition',
+      'presence',
+    ]) &&
+    isMovementPayload(payload.movement) &&
+    isOptionalNumberRecord(payload.potencies, ['weak', 'average', 'strong']) &&
+    isOptionalNumberRecord(payload.save, ['target', 'bonus']) &&
+    isDamageAdjustmentArray(payload.immunities) &&
+    isDamageAdjustmentArray(payload.weaknesses) &&
+    optionalStringArray(payload.conditionImmunities) &&
+    isConditionArray(payload.conditions) &&
+    typeof payload.updatedAt === 'string'
   )
 }
 
@@ -282,6 +408,59 @@ function isRollContext(value: unknown): value is ForgeSteelRollContext {
     optionalStringArray(details.keywords) &&
     optionalLabelTextArray(details.sections) &&
     optionalTierArray(details.tiers)
+  )
+}
+
+function isOptionalNumberRecord(
+  value: unknown,
+  allowedKeys: string[],
+): boolean {
+  if (!isRecord(value)) {
+    return false
+  }
+
+  return Object.entries(value).every(
+    ([key, item]) => allowedKeys.includes(key) && optionalFiniteNumber(item),
+  )
+}
+
+function isMovementPayload(value: unknown): boolean {
+  if (!isRecord(value)) {
+    return false
+  }
+
+  return (
+    optionalString(value.size) &&
+    optionalString(value.speed) &&
+    optionalFiniteNumber(value.stability) &&
+    optionalFiniteNumber(value.disengage)
+  )
+}
+
+function isDamageAdjustmentArray(value: unknown): boolean {
+  return (
+    Array.isArray(value) &&
+    value.every(
+      (item) =>
+        isRecord(item) &&
+        typeof item.damageType === 'string' &&
+        typeof item.value === 'number' &&
+        Number.isFinite(item.value),
+    )
+  )
+}
+
+function isConditionArray(value: unknown): boolean {
+  return (
+    Array.isArray(value) &&
+    value.every(
+      (item) =>
+        isRecord(item) &&
+        typeof item.id === 'string' &&
+        typeof item.type === 'string' &&
+        typeof item.text === 'string' &&
+        typeof item.ends === 'string',
+    )
   )
 }
 

@@ -7,6 +7,7 @@ import {
 import './App.css'
 import {
   type BridgeRejectEvent,
+  type ForgeSteelCharacterSnapshotPayload,
   type ForgeSteelRollResultMessage,
   listenForForgeSteelMessages,
   postDefaultOptionsToForgeSteel,
@@ -24,8 +25,11 @@ import {
   broadcastRoll,
   getCurrentPlayerInfo,
   initializeOwlbear,
+  listenForCharacterRoster,
   listenForSharedRolls,
+  publishCharacterSnapshot,
   resizeActionPopover,
+  type CharacterRosterEntry,
   type OwlbearAdapterState,
 } from './lib/owlbear'
 
@@ -49,7 +53,7 @@ const MAX_PANEL_HEIGHT = 1180
 const MIN_MANUAL_MODIFIER = -99
 const MAX_MANUAL_MODIFIER = 99
 
-type ActiveTab = 'forgesteel' | 'rolls'
+type ActiveTab = 'forgesteel' | 'rolls' | 'director'
 type ManualDice = 'd10' | '2d10'
 type ManualRollState =
   | 'doubleBane'
@@ -104,6 +108,49 @@ function RollScoreBox({
   )
 }
 
+function DirectorStat({
+  label,
+  value,
+  note,
+}: {
+  label: string
+  value: string | number
+  note?: string
+}) {
+  return (
+    <span className="director-stat">
+      <small>{label}</small>
+      <strong>{value}</strong>
+      {note && <em>{note}</em>}
+    </span>
+  )
+}
+
+function DirectorTagSection({
+  label,
+  emptyLabel,
+  tags,
+}: {
+  label: string
+  emptyLabel: string
+  tags: string[]
+}) {
+  return (
+    <div className="director-tag-section">
+      <strong>{label}</strong>
+      {tags.length > 0 ? (
+        <div className="director-tags">
+          {tags.map((tag) => (
+            <span key={tag}>{tag}</span>
+          ))}
+        </div>
+      ) : (
+        <span className="director-muted">{emptyLabel}</span>
+      )}
+    </div>
+  )
+}
+
 function App() {
   const [activeTab, setActiveTab] = useState<ActiveTab>('forgesteel')
   const [rolls, setRolls] = useState<StoredRoll[]>(() => loadStoredRolls())
@@ -119,6 +166,9 @@ function App() {
   const [iframeLoaded, setIframeLoaded] = useState(false)
   const [isResizing, setIsResizing] = useState(false)
   const [localPlayer, setLocalPlayer] = useState<RollPlayer>()
+  const [characterRoster, setCharacterRoster] = useState<
+    CharacterRosterEntry[]
+  >([])
   const [manualDice, setManualDice] = useState<ManualDice>('2d10')
   const [manualModifier, setManualModifier] = useState(0)
   const [manualRollState, setManualRollState] =
@@ -140,6 +190,8 @@ function App() {
   const activeTabRef = useRef<ActiveTab>('forgesteel')
   const flashTimeoutsRef = useRef<number[]>([])
   const rollIdsRef = useRef<Set<string>>(new Set(rolls.map((roll) => roll.id)))
+  const lastCharacterSnapshotRef = useRef<string>('')
+  const isDirector = localPlayer?.role === 'GM'
 
   function recordRoll(
     message: ForgeSteelRollResultMessage,
@@ -214,6 +266,23 @@ function App() {
           return
         }
 
+        if (event.kind === 'character') {
+          const signature = JSON.stringify(event.message.payload)
+
+          if (signature !== lastCharacterSnapshotRef.current) {
+            lastCharacterSnapshotRef.current = signature
+            void publishCharacterSnapshot(event.message.payload)
+          }
+
+          setBridgeStatus({
+            state: 'received',
+            message: event.message.payload
+              ? `Hero snapshot received for ${event.message.payload.characterName}.`
+              : 'No active ForgeSteel hero is open.',
+          })
+          return
+        }
+
         recordRoll(event.message, {
           source: 'forgesteel',
           visibility: 'public',
@@ -267,6 +336,35 @@ function App() {
       unsubscribe()
     }
   }, [])
+
+  useEffect(() => {
+    if (!isDirector) {
+      setCharacterRoster([])
+
+      if (activeTabRef.current === 'director') {
+        activeTabRef.current = 'forgesteel'
+        setActiveTab('forgesteel')
+      }
+
+      return
+    }
+
+    let active = true
+    let unsubscribe: () => void = () => undefined
+
+    void listenForCharacterRoster((entries) => {
+      if (active) {
+        setCharacterRoster(entries)
+      }
+    }).then((listener) => {
+      unsubscribe = listener
+    })
+
+    return () => {
+      active = false
+      unsubscribe()
+    }
+  }, [isDirector])
 
   useEffect(() => {
     const flashTimeouts = flashTimeoutsRef.current
@@ -818,8 +916,177 @@ function App() {
         )}
       </section>
 
+      <section
+        className={`panel panel-director ${
+          activeTab === 'director' ? 'visible' : ''
+        }`}
+        aria-hidden={activeTab !== 'director'}
+      >
+        <div className="director-header">
+          <div>
+            <h2>Director</h2>
+            <p>Live ForgeSteel hero snapshots from connected players.</p>
+          </div>
+          <span>{characterRoster.length} players</span>
+        </div>
+
+        {!isDirector ? (
+          <div className="empty-state">
+            <strong>Director tools are GM only</strong>
+            <span>Open this extension as the Owlbear GM to see party data.</span>
+          </div>
+        ) : characterRoster.length === 0 ? (
+          <div className="empty-state">
+            <strong>No connected players yet</strong>
+            <span>
+              Hero snapshots appear here when players open a ForgeSteel hero
+              through the extension.
+            </span>
+          </div>
+        ) : (
+          <ol className="director-roster">
+            {characterRoster.map((entry) => (
+              <li
+                key={entry.player.connectionId || entry.player.id || entry.player.name}
+                className={`director-card ${
+                  entry.snapshot ? '' : 'director-card-empty'
+                }`}
+              >
+                <div className="director-card-top">
+                  <div className="player-chip">
+                    <span
+                      className="player-avatar"
+                      style={{
+                        backgroundColor: entry.player.color || '#215681',
+                      }}
+                    >
+                      {getInitial(entry.player.name)}
+                    </span>
+                    <span>{entry.player.name}</span>
+                  </div>
+                  <div className="director-card-badges">
+                    <span>{entry.player.role || 'PLAYER'}</span>
+                    <span>
+                      {entry.snapshot
+                        ? formatSnapshotAge(entry.snapshot.updatedAt)
+                        : 'No hero'}
+                    </span>
+                  </div>
+                </div>
+
+                {entry.snapshot ? (
+                  <div className="director-hero">
+                    <div className="director-hero-title">
+                      <h3>{entry.snapshot.characterName}</h3>
+                      <p>{formatHeroSummary(entry.snapshot)}</p>
+                    </div>
+
+                    <div className="director-stat-grid">
+                      <DirectorStat
+                        label="Stamina"
+                        value={formatFraction(
+                          entry.snapshot.stamina.current,
+                          entry.snapshot.stamina.max,
+                        )}
+                        note={
+                          entry.snapshot.stamina.temp
+                            ? `+${entry.snapshot.stamina.temp} temp`
+                            : undefined
+                        }
+                      />
+                      <DirectorStat
+                        label="Recoveries"
+                        value={formatFraction(
+                          entry.snapshot.recoveries.current,
+                          entry.snapshot.recoveries.max,
+                        )}
+                        note={
+                          entry.snapshot.recoveries.value !== undefined
+                            ? `${entry.snapshot.recoveries.value} value`
+                            : undefined
+                        }
+                      />
+                      <DirectorStat
+                        label="Save"
+                        value={formatOptionalNumber(
+                          entry.snapshot.save.target,
+                        )}
+                        note={
+                          entry.snapshot.save.bonus !== undefined
+                            ? `+${entry.snapshot.save.bonus}`
+                            : undefined
+                        }
+                      />
+                      <DirectorStat
+                        label="Speed"
+                        value={entry.snapshot.movement.speed || '-'}
+                        note={
+                          entry.snapshot.movement.size
+                            ? `Size ${entry.snapshot.movement.size}`
+                            : undefined
+                        }
+                      />
+                    </div>
+
+                    <div className="director-characteristics">
+                      {Object.entries(entry.snapshot.characteristics).map(
+                        ([key, value]) => (
+                          <span key={key}>
+                            <small>{key.slice(0, 3).toUpperCase()}</small>
+                            <strong>{formatOptionalNumber(value)}</strong>
+                          </span>
+                        ),
+                      )}
+                    </div>
+
+                    <DirectorTagSection
+                      label="Immunities"
+                      emptyLabel="No immunities"
+                      tags={entry.snapshot.immunities.map(
+                        (modifier) =>
+                          `${modifier.damageType} ${formatSignedNumber(
+                            modifier.value,
+                          )}`,
+                      )}
+                    />
+                    <DirectorTagSection
+                      label="Weaknesses"
+                      emptyLabel="No weaknesses"
+                      tags={entry.snapshot.weaknesses.map(
+                        (modifier) =>
+                          `${modifier.damageType} ${formatSignedNumber(
+                            modifier.value,
+                          )}`,
+                      )}
+                    />
+                    <DirectorTagSection
+                      label="Conditions"
+                      emptyLabel="No conditions"
+                      tags={entry.snapshot.conditions.map((condition) =>
+                        condition.text
+                          ? `${condition.type}: ${condition.text}`
+                          : condition.type,
+                      )}
+                    />
+                  </div>
+                ) : (
+                  <p className="director-empty-note">
+                    This player has the extension open, but no ForgeSteel hero
+                    page is currently active.
+                  </p>
+                )}
+              </li>
+            ))}
+          </ol>
+        )}
+      </section>
+
       <footer className="bottom-bar">
-        <nav className="tabs" aria-label="Extension views">
+        <nav
+          className="tabs"
+          aria-label="Extension views"
+          style={{ gridTemplateColumns: `repeat(${isDirector ? 3 : 2}, minmax(0, 1fr))` }}
+        >
           <button
             type="button"
             className={activeTab === 'forgesteel' ? 'active' : ''}
@@ -835,6 +1102,15 @@ function App() {
             Rolls
             {unseenRollIds.size > 0 && <span>{unseenRollIds.size}</span>}
           </button>
+          {isDirector && (
+            <button
+              type="button"
+              className={activeTab === 'director' ? 'active' : ''}
+              onClick={() => selectTab('director')}
+            >
+              Director
+            </button>
+          )}
         </nav>
         <div className="status-info">
           <button
@@ -1045,6 +1321,58 @@ function formatOptionalNumber(value: number | undefined): string {
   return value === undefined ? '-' : value.toString()
 }
 
+function formatFraction(
+  current: number | undefined,
+  max: number | undefined,
+): string {
+  if (current === undefined && max === undefined) {
+    return '-'
+  }
+
+  if (current === undefined) {
+    return `- / ${max}`
+  }
+
+  if (max === undefined) {
+    return current.toString()
+  }
+
+  return `${current} / ${max}`
+}
+
+function formatHeroSummary(
+  snapshot: ForgeSteelCharacterSnapshotPayload,
+): string {
+  return [
+    snapshot.level ? `Level ${snapshot.level}` : undefined,
+    snapshot.ancestryName,
+    snapshot.className,
+    snapshot.subclassName ? `(${snapshot.subclassName})` : undefined,
+  ]
+    .filter(Boolean)
+    .join(' ')
+}
+
+function formatSnapshotAge(timestamp: string): string {
+  const updatedAt = new Date(timestamp).getTime()
+
+  if (!Number.isFinite(updatedAt)) {
+    return 'Updated'
+  }
+
+  const seconds = Math.max(0, Math.round((Date.now() - updatedAt) / 1000))
+
+  if (seconds < 10) {
+    return 'Live'
+  }
+
+  if (seconds < 60) {
+    return `${seconds}s ago`
+  }
+
+  return `${Math.floor(seconds / 60)}m ago`
+}
+
 function formatTierValue(roll: StoredRoll): string {
   return roll.tier === undefined ? '-' : roll.tier.toString()
 }
@@ -1075,6 +1403,10 @@ function getPlayerName(roll: StoredRoll): string {
 
 function getPlayerInitial(roll: StoredRoll): string {
   return getPlayerName(roll).trim().charAt(0).toUpperCase() || '?'
+}
+
+function getInitial(value: string): string {
+  return value.trim().charAt(0).toUpperCase() || '?'
 }
 
 function formatRollTime(timestamp: string): string {

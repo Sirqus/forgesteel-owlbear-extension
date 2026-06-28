@@ -117,7 +117,8 @@ h1 {
   color: #a5abb4;
 }
 
-.panel-rolls {
+.panel-rolls,
+.panel-director {
   padding: 14px;
   color: #f2f0ea;
   overflow: auto;
@@ -128,21 +129,25 @@ h1 {
     #17181b;
 }
 
-.panel-rolls::-webkit-scrollbar {
+.panel-rolls::-webkit-scrollbar,
+.panel-director::-webkit-scrollbar {
   width: 10px;
 }
 
-.panel-rolls::-webkit-scrollbar-track {
+.panel-rolls::-webkit-scrollbar-track,
+.panel-director::-webkit-scrollbar-track {
   background: #17181b;
 }
 
-.panel-rolls::-webkit-scrollbar-thumb {
+.panel-rolls::-webkit-scrollbar-thumb,
+.panel-director::-webkit-scrollbar-thumb {
   border: 2px solid #17181b;
   border-radius: 999px;
   background: #454951;
 }
 
-.panel-rolls::-webkit-scrollbar-thumb:hover {
+.panel-rolls::-webkit-scrollbar-thumb:hover,
+.panel-director::-webkit-scrollbar-thumb:hover {
   background: #565b65;
 }
 
@@ -726,6 +731,189 @@ h1 {
   line-height: 1.35;
 }
 
+.director-header {
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: 12px;
+  margin-bottom: 14px;
+}
+
+.director-header h2 {
+  margin-bottom: 4px;
+  font-size: 18px;
+}
+
+.director-header p,
+.director-empty-note {
+  color: #a5abb4;
+  font-size: 13px;
+  line-height: 1.4;
+}
+
+.director-header > span,
+.director-card-badges span {
+  display: inline-flex;
+  align-items: center;
+  min-height: 22px;
+  padding: 0 8px;
+  border: 1px solid #454951;
+  border-radius: 999px;
+  color: #c3c8d0;
+  background: #181a1f;
+  font-size: 11px;
+  font-weight: 800;
+  white-space: nowrap;
+}
+
+.director-roster {
+  display: grid;
+  gap: 12px;
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+
+.director-card {
+  display: grid;
+  gap: 12px;
+  padding: 12px;
+  border: 1px solid #3b3f47;
+  border-top: 3px solid #177245;
+  border-radius: 8px;
+  background: #202126;
+  box-shadow: 0 2px 8px rgba(0, 0, 0, 0.28);
+}
+
+.director-card-empty {
+  border-top-color: #6d7380;
+}
+
+.director-card-top,
+.director-card-badges,
+.director-hero-title,
+.director-tags {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+
+.director-card-top {
+  justify-content: space-between;
+}
+
+.director-card-badges {
+  flex-wrap: wrap;
+  justify-content: flex-end;
+}
+
+.director-hero {
+  display: grid;
+  gap: 10px;
+}
+
+.director-hero-title {
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: 12px;
+}
+
+.director-hero-title h3 {
+  margin: 0;
+  font-size: 16px;
+}
+
+.director-hero-title p {
+  color: #a5abb4;
+  font-size: 12px;
+  text-align: right;
+}
+
+.director-stat-grid {
+  display: grid;
+  grid-template-columns: repeat(4, minmax(0, 1fr));
+  gap: 6px;
+}
+
+.director-stat,
+.director-characteristics span {
+  display: grid;
+  min-width: 0;
+  place-items: center;
+  align-content: center;
+  gap: 2px;
+  min-height: 58px;
+  padding: 6px;
+  border: 1px solid #454951;
+  border-radius: 7px;
+  background: #181a1f;
+  text-align: center;
+}
+
+.director-stat small,
+.director-characteristics small {
+  color: #a5abb4;
+  font-size: 10px;
+  font-weight: 900;
+  letter-spacing: 0;
+  text-transform: uppercase;
+}
+
+.director-stat strong,
+.director-characteristics strong {
+  color: #f2f0ea;
+  font-size: 17px;
+  line-height: 1;
+}
+
+.director-stat em {
+  color: #f1c27a;
+  font-size: 10px;
+  font-style: normal;
+  font-weight: 800;
+  line-height: 1.1;
+}
+
+.director-characteristics {
+  display: grid;
+  grid-template-columns: repeat(5, minmax(0, 1fr));
+  gap: 6px;
+}
+
+.director-tag-section {
+  display: grid;
+  gap: 6px;
+  padding-top: 8px;
+  border-top: 1px solid #3b3f47;
+}
+
+.director-tag-section > strong {
+  color: #76acd2;
+  font-size: 12px;
+}
+
+.director-tags {
+  flex-wrap: wrap;
+}
+
+.director-tags span {
+  display: inline-flex;
+  align-items: center;
+  min-height: 22px;
+  padding: 0 8px;
+  border: 1px solid #454951;
+  border-radius: 999px;
+  color: #d9dde2;
+  background: #181a1f;
+  font-size: 11px;
+  font-weight: 800;
+}
+
+.director-muted {
+  color: #7e858f;
+  font-size: 12px;
+}
+
 .bottom-bar {
   position: relative;
   z-index: 20;
@@ -974,5 +1162,28 @@ h1 {
 
   .roll-state-control {
     grid-template-columns: repeat(2, minmax(0, 1fr));
+  }
+
+  .director-header,
+  .director-card-top,
+  .director-hero-title {
+    align-items: stretch;
+    flex-direction: column;
+  }
+
+  .director-card-badges {
+    justify-content: flex-start;
+  }
+
+  .director-hero-title p {
+    text-align: left;
+  }
+
+  .director-stat-grid {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+  }
+
+  .director-characteristics {
+    grid-template-columns: repeat(3, minmax(0, 1fr));
   }
 }
