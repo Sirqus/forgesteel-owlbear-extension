@@ -117,110 +117,6 @@ h1 {
   font-size: 16px;
 }
 
-.roll-notice-stack {
-  position: absolute;
-  top: 10px;
-  left: 50%;
-  z-index: 60;
-  display: grid;
-  width: min(440px, calc(100% - 22px));
-  gap: 8px;
-  transform: translateX(-50%);
-  pointer-events: none;
-}
-
-.roll-notice {
-  display: grid;
-  grid-template-columns: minmax(0, 1fr) auto 24px;
-  align-items: center;
-  gap: 10px;
-  padding: 10px 10px 10px 12px;
-  border: 1px solid rgba(118, 172, 210, 0.48);
-  border-left: 4px solid #76acd2;
-  border-radius: 8px;
-  color: #f2f0ea;
-  background:
-    linear-gradient(135deg, rgba(33, 86, 129, 0.28), rgba(23, 24, 27, 0.98)),
-    #202126;
-  box-shadow: 0 14px 36px rgba(0, 0, 0, 0.48);
-  animation: roll-notice-enter 0.18s ease-out;
-  pointer-events: auto;
-}
-
-.roll-notice > div:first-child {
-  display: grid;
-  min-width: 0;
-  gap: 2px;
-}
-
-.roll-notice strong,
-.roll-notice span {
-  min-width: 0;
-  overflow: hidden;
-  text-overflow: ellipsis;
-  white-space: nowrap;
-}
-
-.roll-notice > div:first-child span {
-  color: #b7bdc6;
-  font-size: 12px;
-  font-weight: 800;
-}
-
-.roll-notice-scores {
-  display: flex;
-  gap: 5px;
-}
-
-.roll-notice-scores span {
-  display: grid;
-  min-width: 46px;
-  gap: 1px;
-  place-items: center;
-  padding: 5px 6px;
-  border: 1px solid #454951;
-  border-radius: 6px;
-  color: #a5abb4;
-  background: #181a1f;
-  font-size: 9px;
-  font-weight: 900;
-}
-
-.roll-notice-scores strong {
-  color: #ffffff;
-  font-size: 16px;
-  line-height: 1;
-}
-
-.roll-notice button {
-  width: 24px;
-  height: 24px;
-  border: 1px solid #454951;
-  border-radius: 999px;
-  color: #b7bdc6;
-  background: #181a1f;
-  font: inherit;
-  font-size: 12px;
-  font-weight: 900;
-  cursor: pointer;
-}
-
-.roll-notice button:hover {
-  color: #f2f0ea;
-  border-color: #666c76;
-}
-
-@keyframes roll-notice-enter {
-  from {
-    opacity: 0;
-    transform: translateY(-6px);
-  }
-  to {
-    opacity: 1;
-    transform: translateY(0);
-  }
-}
-
 .iframe-loading span,
 .empty-state span,
 .rolls-header p,
@@ -522,6 +418,7 @@ h1 {
 
 .roll-card {
   display: grid;
+  position: relative;
   gap: 0;
   padding: 0;
   border-top: 3px solid #215681;
@@ -530,7 +427,16 @@ h1 {
 
 .roll-card-hidden {
   border-top-color: #6d7380;
-  opacity: 0.9;
+  opacity: 0.96;
+  background:
+    repeating-linear-gradient(
+      135deg,
+      rgba(255, 255, 255, 0.035) 0,
+      rgba(255, 255, 255, 0.035) 6px,
+      transparent 6px,
+      transparent 13px
+    ),
+    #202126;
 }
 
 .roll-card-mine {
@@ -551,6 +457,19 @@ h1 {
 .roll-card-mine .roll-card-summary:hover,
 .roll-card-mine .roll-card-summary:focus-visible {
   background: rgba(140, 168, 90, 0.08);
+}
+
+.roll-card-hidden.roll-card-mine {
+  background:
+    repeating-linear-gradient(
+      135deg,
+      rgba(255, 255, 255, 0.04) 0,
+      rgba(255, 255, 255, 0.04) 6px,
+      transparent 6px,
+      transparent 13px
+    ),
+    linear-gradient(135deg, rgba(140, 168, 90, 0.12), rgba(32, 33, 38, 0.96)),
+    #202126;
 }
 
 .roll-card-fresh {
@@ -653,6 +572,57 @@ h1 {
   background: #181a1f;
   font-size: 11px;
   font-weight: 800;
+}
+
+.roll-card-badges .hidden-visibility-icon {
+  position: relative;
+  width: 22px;
+  min-width: 22px;
+  padding: 0;
+  color: #c3c8d0;
+}
+
+.hidden-visibility-icon::before {
+  content: '';
+  position: absolute;
+  left: 5px;
+  top: 6px;
+  width: 10px;
+  height: 6px;
+  border: 2px solid currentColor;
+  border-radius: 999px;
+}
+
+.hidden-visibility-icon::after {
+  content: '';
+  position: absolute;
+  left: 4px;
+  top: 9px;
+  width: 14px;
+  height: 2px;
+  border-radius: 999px;
+  background: currentColor;
+  transform: rotate(-38deg);
+}
+
+.show-hidden-command {
+  min-height: 24px;
+  padding: 0 8px;
+  border: 1px solid rgba(118, 172, 210, 0.55);
+  border-radius: 999px;
+  color: #d9dde2;
+  background: rgba(33, 86, 129, 0.24);
+  font: inherit;
+  font-size: 11px;
+  font-weight: 900;
+  cursor: pointer;
+}
+
+.show-hidden-command:hover,
+.show-hidden-command:focus-visible {
+  color: #ffffff;
+  background: #215681;
+  outline: none;
 }
 
 .roll-card-main {
@@ -1562,6 +1532,31 @@ h1 {
     #ffffff;
 }
 
+.extension-shell.theme-light .roll-card-hidden {
+  background:
+    repeating-linear-gradient(
+      135deg,
+      rgba(49, 61, 76, 0.06) 0,
+      rgba(49, 61, 76, 0.06) 6px,
+      transparent 6px,
+      transparent 13px
+    ),
+    #ffffff;
+}
+
+.extension-shell.theme-light .roll-card-hidden.roll-card-mine {
+  background:
+    repeating-linear-gradient(
+      135deg,
+      rgba(49, 61, 76, 0.06) 0,
+      rgba(49, 61, 76, 0.06) 6px,
+      transparent 6px,
+      transparent 13px
+    ),
+    linear-gradient(135deg, rgba(140, 168, 90, 0.16), rgba(255, 255, 255, 0.96)),
+    #ffffff;
+}
+
 .extension-shell.theme-light .roll-card-summary:hover,
 .extension-shell.theme-light .roll-card-summary:focus-visible {
   background: rgba(31, 42, 56, 0.04);
@@ -1629,8 +1624,7 @@ h1 {
 .extension-shell.theme-light .tabs,
 .extension-shell.theme-light .settings-button,
 .extension-shell.theme-light .status-info-button,
-.extension-shell.theme-light .roll-notice-scores span,
-.extension-shell.theme-light .roll-notice button {
+.extension-shell.theme-light .show-hidden-command {
   border-color: #d3d9e2;
   color: #394454;
   background: #f4f6f8;
@@ -1711,20 +1705,11 @@ h1 {
   background: #215681;
 }
 
-.extension-shell.theme-light .roll-notice {
-  color: #20242a;
-  background:
-    linear-gradient(135deg, rgba(33, 86, 129, 0.12), rgba(255, 255, 255, 0.98)),
-    #ffffff;
-  box-shadow: 0 14px 34px rgba(31, 42, 56, 0.2);
-}
-
-.extension-shell.theme-light .roll-notice > div:first-child span {
-  color: #5d6673;
-}
-
-.extension-shell.theme-light .roll-notice-scores strong {
-  color: #20242a;
+.extension-shell.theme-light .show-hidden-command:hover,
+.extension-shell.theme-light .show-hidden-command:focus-visible {
+  color: #ffffff;
+  border-color: #2f6f9c;
+  background: #215681;
 }
 
 .resize-grip {

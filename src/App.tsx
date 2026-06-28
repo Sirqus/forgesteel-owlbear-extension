@@ -1,4 +1,5 @@
 import {
+  type KeyboardEvent as ReactKeyboardEvent,
   type PointerEvent as ReactPointerEvent,
   useEffect,
   useMemo,
@@ -36,6 +37,7 @@ import {
 } from './lib/logStorage'
 import {
   broadcastDamageLog,
+  broadcastLogEntry,
   broadcastRoll,
   getCurrentPlayerInfo,
   initializeOwlbear,
@@ -118,15 +120,6 @@ type PowerRollResult = {
   formula: string
   rollStateLabel: string
   breakdown: string
-}
-
-type RollNotice = {
-  id: string
-  actorName: string
-  playerName?: string
-  naturalTotal?: number
-  total: number
-  tier?: 1 | 2 | 3
 }
 
 const MANUAL_ROLL_STATES: Array<{
@@ -270,13 +263,10 @@ function App() {
   const [expandedLogIds, setExpandedLogIds] = useState<Set<string>>(
     () => new Set(),
   )
-  const [rollNotices, setRollNotices] = useState<RollNotice[]>([])
   const iframeRef = useRef<HTMLIFrameElement>(null)
   const localPlayerRef = useRef<RollPlayer | undefined>(undefined)
   const activeTabRef = useRef<ActiveTab>('forgesteel')
   const flashTimeoutsRef = useRef<number[]>([])
-  const noticeTimeoutsRef = useRef<number[]>([])
-  const noticedLogIdsRef = useRef<Set<string>>(new Set())
   const logIdsRef = useRef<Set<string>>(
     new Set(logEntries.map((entry) => entry.id)),
   )
@@ -428,15 +418,7 @@ function App() {
         return
       }
 
-      const added = recordLogEntry(event.entry)
-
-      if (
-        added &&
-        event.entry.kind === 'roll' &&
-        !isSameRollPlayer(event.entry.player, localPlayerRef.current)
-      ) {
-        queueRollNotice(event.entry)
-      }
+      recordLogEntry(event.entry)
 
       setBridgeStatus({
         state: 'received',
@@ -544,13 +526,9 @@ function App() {
 
   useEffect(() => {
     const flashTimeouts = flashTimeoutsRef.current
-    const noticeTimeouts = noticeTimeoutsRef.current
 
     return () => {
       flashTimeouts.forEach((timeoutId) => {
-        window.clearTimeout(timeoutId)
-      })
-      noticeTimeouts.forEach((timeoutId) => {
         window.clearTimeout(timeoutId)
       })
     }
@@ -760,37 +738,6 @@ function App() {
     flashTimeoutsRef.current.push(timeoutId)
   }
 
-  function queueRollNotice(entry: StoredRollLogEntry) {
-    if (noticedLogIdsRef.current.has(entry.id)) {
-      return
-    }
-
-    noticedLogIdsRef.current.add(entry.id)
-
-    const notice: RollNotice = {
-      id: entry.id,
-      actorName: entry.actorName,
-      playerName: entry.player?.name,
-      naturalTotal: entry.naturalTotal,
-      total: entry.total,
-      tier: entry.tier,
-    }
-
-    setRollNotices((currentNotices) => [notice, ...currentNotices].slice(0, 3))
-
-    const timeoutId = window.setTimeout(() => {
-      dismissRollNotice(entry.id)
-    }, 4200)
-
-    noticeTimeoutsRef.current.push(timeoutId)
-  }
-
-  function dismissRollNotice(noticeId: string) {
-    setRollNotices((currentNotices) =>
-      currentNotices.filter((notice) => notice.id !== noticeId),
-    )
-  }
-
   function adjustManualModifier(delta: number) {
     setManualModifier((value) =>
       clamp(value + delta, MIN_MANUAL_MODIFIER, MAX_MANUAL_MODIFIER),
@@ -856,6 +803,18 @@ function App() {
     })
   }
 
+  function handleLogSummaryKeyDown(
+    event: ReactKeyboardEvent<HTMLElement>,
+    logId: string,
+  ) {
+    if (event.key !== 'Enter' && event.key !== ' ') {
+      return
+    }
+
+    event.preventDefault()
+    toggleLogExpanded(logId)
+  }
+
   function clearTableLog() {
     setLogEntries([])
     clearStoredLogEntries()
@@ -866,6 +825,27 @@ function App() {
     setExpandedLogIds(new Set())
     setClearConfirmOpen(false)
     void setActionBadgeCount(0)
+  }
+
+  function showHiddenLogEntry(entry: TableLogEntry) {
+    if (entry.visibility !== 'hidden') {
+      return
+    }
+
+    const publicEntry = {
+      ...entry,
+      visibility: 'public',
+    } satisfies TableLogEntry
+
+    setLogEntries((currentEntries) => {
+      const nextEntries = currentEntries.map((item) =>
+        item.id === entry.id ? publicEntry : item,
+      )
+      saveStoredLogEntries(nextEntries)
+      return nextEntries
+    })
+
+    void broadcastLogEntry(publicEntry)
   }
 
   function entryBelongsToCurrentPlayer(entry: TableLogEntry): boolean {
@@ -891,11 +871,13 @@ function App() {
           flashingLogIds.has(entry.id) ? 'roll-card-fresh' : ''
         }`}
       >
-        <button
-          type="button"
+        <div
           className="roll-card-summary"
+          role="button"
+          tabIndex={0}
           aria-expanded={expanded}
           onClick={() => toggleLogExpanded(entry.id)}
+          onKeyDown={(event) => handleLogSummaryKeyDown(event, entry.id)}
         >
           <div className="roll-card-header">
             <div className="player-chip">
@@ -913,11 +895,31 @@ function App() {
               {isMine && <span>You</span>}
               <span>Damage</span>
               <span>{entry.damageType}</span>
-              {entry.visibility === 'hidden' && <span>Hidden</span>}
+              {entry.visibility === 'hidden' && (
+                <span
+                  className="hidden-visibility-icon"
+                  role="img"
+                  aria-label="Hidden"
+                  title="Hidden"
+                />
+              )}
             </div>
             <time dateTime={entry.timestamp}>
               {formatRollTime(entry.timestamp)}
             </time>
+            {isDirector && entry.visibility === 'hidden' && (
+              <button
+                type="button"
+                className="show-hidden-command"
+                onClick={(event) => {
+                  event.stopPropagation()
+                  showHiddenLogEntry(entry)
+                }}
+                onKeyDown={(event) => event.stopPropagation()}
+              >
+                Show
+              </button>
+            )}
             <span
               className={`expand-indicator ${expanded ? 'expanded' : ''}`}
               aria-hidden="true"
@@ -947,7 +949,7 @@ function App() {
             <span>{entry.formula}</span>
             <em>{entry.rollState}</em>
           </div>
-        </button>
+        </div>
 
         {expanded && (
           <div className="roll-card-details">
@@ -1323,42 +1325,6 @@ function App() {
     >
       <h1 className="sr-only">ForgeSteel Owlbear Extension</h1>
 
-      {rollNotices.length > 0 && (
-        <div className="roll-notice-stack" aria-live="polite">
-          {rollNotices.map((notice) => (
-            <section key={notice.id} className="roll-notice">
-              <div>
-                <strong>{notice.actorName}</strong>
-                <span>
-                  {notice.playerName
-                    ? `${notice.playerName} rolled`
-                    : 'New table roll'}
-                </span>
-              </div>
-              <div className="roll-notice-scores">
-                <span>
-                  NAT <strong>{formatOptionalNumber(notice.naturalTotal)}</strong>
-                </span>
-                <span>
-                  TOTAL <strong>{notice.total}</strong>
-                </span>
-                <span>
-                  TIER{' '}
-                  <strong>{notice.tier === undefined ? '-' : notice.tier}</strong>
-                </span>
-              </div>
-              <button
-                type="button"
-                aria-label="Dismiss roll notice"
-                onClick={() => dismissRollNotice(notice.id)}
-              >
-                x
-              </button>
-            </section>
-          ))}
-        </div>
-      )}
-
       <section
         className={`panel panel-forgesteel ${
           activeTab === 'forgesteel' ? 'visible' : ''
@@ -1434,11 +1400,15 @@ function App() {
                     flashingLogIds.has(roll.id) ? 'roll-card-fresh' : ''
                   }`}
                 >
-                  <button
-                    type="button"
+                  <div
                     className="roll-card-summary"
+                    role="button"
+                    tabIndex={0}
                     aria-expanded={expanded}
                     onClick={() => toggleLogExpanded(roll.id)}
+                    onKeyDown={(event) =>
+                      handleLogSummaryKeyDown(event, roll.id)
+                    }
                   >
                     <div className="roll-card-header">
                       <div className="player-chip">
@@ -1457,11 +1427,31 @@ function App() {
                         <span>
                           {roll.source === 'manual' ? 'Manual' : 'ForgeSteel'}
                         </span>
-                        {roll.visibility === 'hidden' && <span>Hidden</span>}
+                        {roll.visibility === 'hidden' && (
+                          <span
+                            className="hidden-visibility-icon"
+                            role="img"
+                            aria-label="Hidden"
+                            title="Hidden"
+                          />
+                        )}
                       </div>
                       <time dateTime={roll.timestamp}>
                         {formatRollTime(roll.timestamp)}
                       </time>
+                      {isDirector && roll.visibility === 'hidden' && (
+                        <button
+                          type="button"
+                          className="show-hidden-command"
+                          onClick={(event) => {
+                            event.stopPropagation()
+                            showHiddenLogEntry(roll)
+                          }}
+                          onKeyDown={(event) => event.stopPropagation()}
+                        >
+                          Show
+                        </button>
+                      )}
                       <span
                         className={`expand-indicator ${
                           expanded ? 'expanded' : ''
@@ -1504,7 +1494,7 @@ function App() {
                           <em>{roll.rollState}</em>
                         )}
                     </div>
-                  </button>
+                  </div>
 
                   {expanded && (
                     <div className="roll-card-details">
@@ -2248,10 +2238,6 @@ function getTierAdjustmentLabel(entry: {
 }
 
 function getPlayerName(roll: StoredRollLogEntry): string {
-  if (roll.visibility === 'hidden') {
-    return `${roll.player?.name || 'Local'} (hidden)`
-  }
-
   return roll.player?.name || 'Unknown Player'
 }
 
