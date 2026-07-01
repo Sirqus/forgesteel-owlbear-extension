@@ -11,10 +11,13 @@ import {
   showSharedLogNotification,
 } from './lib/owlbear'
 import { isSameRollPlayer } from './lib/playerIdentity'
+import { cleanupForgeSteelServiceWorkers } from './lib/serviceWorkerCleanup'
 
 void startBackgroundListener()
 
 async function startBackgroundListener() {
+  await cleanupForgeSteelServiceWorkers()
+
   const localPlayer = await getCurrentPlayerInfo()
 
   await setActionBadgeCount(loadUnreadLogIds().size)
