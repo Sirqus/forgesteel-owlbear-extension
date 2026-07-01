@@ -76,6 +76,10 @@ export type CharacterRosterEntry = {
   snapshot: ForgeSteelCharacterSnapshotPayload | null
 }
 
+export function isOwlbearAvailable(): boolean {
+  return OBR.isAvailable
+}
+
 export async function initializeOwlbear(): Promise<OwlbearAdapterState> {
   if (!OBR.isAvailable) {
     return {

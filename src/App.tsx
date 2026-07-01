@@ -41,6 +41,7 @@ import {
   broadcastRoll,
   getCurrentPlayerInfo,
   initializeOwlbear,
+  isOwlbearAvailable,
   listenForCharacterRoster,
   listenForSharedLogEvents,
   publishCharacterSnapshot,
@@ -226,10 +227,17 @@ function App() {
     state: 'waiting',
     message: 'Waiting for ForgeSteel bridge events.',
   })
-  const [owlbearStatus, setOwlbearStatus] = useState<OwlbearAdapterState>({
-    status: 'available',
-    message: 'Connecting to Owlbear Rodeo.',
-  })
+  const [owlbearStatus, setOwlbearStatus] = useState<OwlbearAdapterState>(() =>
+    isOwlbearAvailable()
+      ? {
+          status: 'available',
+          message: 'Connecting to Owlbear Rodeo.',
+        }
+      : {
+          status: 'unavailable',
+          message: 'Open this extension inside Owlbear Rodeo to enable SDK events.',
+        },
+  )
   const [panelSize, setPanelSize] = useState<PanelSize>(loadPanelSize)
   const [iframeLoaded, setIframeLoaded] = useState(false)
   const [isResizing, setIsResizing] = useState(false)
@@ -271,6 +279,7 @@ function App() {
     new Set(logEntries.map((entry) => entry.id)),
   )
   const lastCharacterSnapshotRef = useRef<string>('')
+  const isStandaloneBrowser = owlbearStatus.status === 'unavailable'
   const isDirector = localPlayer?.role === 'GM'
   const attackTargets = useMemo(
     () => characterRoster.filter((entry) => entry.snapshot),
@@ -358,6 +367,16 @@ function App() {
       active = false
     }
   }, [])
+
+  useEffect(() => {
+    if (!isStandaloneBrowser) {
+      return
+    }
+
+    activeTabRef.current = 'forgesteel'
+    setActiveTab('forgesteel')
+    setSettingsOpen(false)
+  }, [isStandaloneBrowser])
 
   useEffect(() => {
     return listenForForgeSteelMessages({
@@ -1319,7 +1338,7 @@ function App() {
     <main
       className={`extension-shell theme-${extensionTheme} ${
         isResizing ? 'resizing' : ''
-      }`}
+      } ${isStandaloneBrowser ? 'standalone-shell' : ''}`}
     >
       <h1 className="sr-only">ForgeSteel Owlbear Extension</h1>
 
@@ -1786,85 +1805,89 @@ function App() {
         )}
       </section>
 
-      <footer className="bottom-bar">
-        <nav
-          className="tabs"
-          aria-label="Extension views"
-          style={{
-            gridTemplateColumns: `repeat(${visibleTabs.length}, minmax(0, 1fr))`,
-          }}
-        >
-          {visibleTabs.map((tab) => (
+      {!isStandaloneBrowser && (
+        <footer className="bottom-bar">
+          <nav
+            className="tabs"
+            aria-label="Extension views"
+            style={{
+              gridTemplateColumns: `repeat(${visibleTabs.length}, minmax(0, 1fr))`,
+            }}
+          >
+            {visibleTabs.map((tab) => (
+              <button
+                key={tab.id}
+                type="button"
+                className={activeTab === tab.id ? 'active' : ''}
+                onClick={() => selectTab(tab.id)}
+              >
+                {tab.label}
+                {tab.id === 'log' && unseenLogIds.size > 0 && (
+                  <span>{unseenLogIds.size}</span>
+                )}
+              </button>
+            ))}
+          </nav>
+          <div className="settings-info">
             <button
-              key={tab.id}
               type="button"
-              className={activeTab === tab.id ? 'active' : ''}
-              onClick={() => selectTab(tab.id)}
+              className="settings-button"
+              aria-label="Extension settings"
+              aria-expanded={settingsOpen}
+              onClick={() => setSettingsOpen((isOpen) => !isOpen)}
             >
-              {tab.label}
-              {tab.id === 'log' && unseenLogIds.size > 0 && (
-                <span>{unseenLogIds.size}</span>
-              )}
+              S
             </button>
-          ))}
-        </nav>
-        <div className="settings-info">
-          <button
-            type="button"
-            className="settings-button"
-            aria-label="Extension settings"
-            aria-expanded={settingsOpen}
-            onClick={() => setSettingsOpen((isOpen) => !isOpen)}
-          >
-            S
-          </button>
-          {settingsOpen && (
-            <section className="settings-popover" aria-label="Settings">
-              <div className="settings-popover-heading">
-                <strong>Settings</strong>
-                <span>Extension display</span>
-              </div>
-              <div className="control-group">
-                <span>Theme</span>
-                <div className="segmented-control theme-control">
-                  {(['dark', 'light'] as ExtensionTheme[]).map((theme) => (
-                    <button
-                      key={theme}
-                      type="button"
-                      className={extensionTheme === theme ? 'active' : ''}
-                      aria-pressed={extensionTheme === theme}
-                      onClick={() => setExtensionTheme(theme)}
-                    >
-                      {theme === 'dark' ? 'Dark' : 'Light'}
-                    </button>
-                  ))}
+            {settingsOpen && (
+              <section className="settings-popover" aria-label="Settings">
+                <div className="settings-popover-heading">
+                  <strong>Settings</strong>
+                  <span>Extension display</span>
                 </div>
-              </div>
-            </section>
-          )}
-        </div>
-        <div className="status-info">
-          <button
-            type="button"
-            className={`status-info-button status-info-${owlbearStatus.status}`}
-            aria-label="Extension status"
-          >
-            i
-          </button>
-          <div className="status-tooltip" role="status">
-            <p>{owlbearStatus.message}</p>
-            <p>{bridgeStatus.message}</p>
+                <div className="control-group">
+                  <span>Theme</span>
+                  <div className="segmented-control theme-control">
+                    {(['dark', 'light'] as ExtensionTheme[]).map((theme) => (
+                      <button
+                        key={theme}
+                        type="button"
+                        className={extensionTheme === theme ? 'active' : ''}
+                        aria-pressed={extensionTheme === theme}
+                        onClick={() => setExtensionTheme(theme)}
+                      >
+                        {theme === 'dark' ? 'Dark' : 'Light'}
+                      </button>
+                    ))}
+                  </div>
+                </div>
+              </section>
+            )}
           </div>
-        </div>
-      </footer>
+          <div className="status-info">
+            <button
+              type="button"
+              className={`status-info-button status-info-${owlbearStatus.status}`}
+              aria-label="Extension status"
+            >
+              i
+            </button>
+            <div className="status-tooltip" role="status">
+              <p>{owlbearStatus.message}</p>
+              <p>{bridgeStatus.message}</p>
+            </div>
+          </div>
+        </footer>
+      )}
 
-      <button
-        type="button"
-        className="resize-grip"
-        aria-label="Resize panel"
-        title="Drag to resize panel"
-        onPointerDown={handleResizeGripPointerDown}
-      />
+      {!isStandaloneBrowser && (
+        <button
+          type="button"
+          className="resize-grip"
+          aria-label="Resize panel"
+          title="Drag to resize panel"
+          onPointerDown={handleResizeGripPointerDown}
+        />
+      )}
     </main>
   )
 }

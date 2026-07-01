@@ -22,6 +22,10 @@
   user-select: none;
 }
 
+.extension-shell.standalone-shell {
+  grid-template-rows: minmax(0, 1fr);
+}
+
 .sr-only {
   position: absolute;
   width: 1px;
